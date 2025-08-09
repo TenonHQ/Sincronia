@@ -8,7 +8,7 @@ import { logger } from "./Logger";
 import path from "path";
 import { snClient, unwrapSNResponse, defaultClient } from "./snClient";
 
-export async function startWizard(args: Sinc.SharedCmdArgs) {
+export async function startWizard() {
   let loginAnswers = await getLoginInfo();
   try {
     let { username, password, instance } = loginAnswers;

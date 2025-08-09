@@ -202,11 +202,16 @@ export const snClient = (
 
   const getManifest = (
     scope: string,
-    config: Sinc.Config,
-    withFiles = false
+    config: Sinc.ScopedConfig,
+    withFiles = false,
   ) => {
     const endpoint = `api/x_nuvo_sinc/sinc/getManifest/${scope}`;
-    const { includes = {}, excludes = {}, tableOptions = {} } = config;
+    const {
+      includes = {},
+      excludes = {},
+      tableOptions = {},
+      scopes = {},
+    } = config;
     type AppResponse = Sinc.SNAPIResponse<SN.AppManifest>;
     return client.post<AppResponse>(endpoint, {
       includes,

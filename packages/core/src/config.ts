@@ -2,9 +2,9 @@ import { SN, Sinc } from "@tenonhq/sincronia-types";
 import path from "path";
 import { promises as fsp } from "fs";
 import { logger } from "./Logger";
-import { includes, excludes, tableOptions } from "./defaultOptions";
+import { includes, excludes, tableOptions, scopes } from "./defaultOptions";
 
-const DEFAULT_CONFIG: Sinc.Config = {
+const DEFAULT_CONFIG: Sinc.ScopedConfig = {
   sourceDirectory: "src",
   buildDirectory: "build",
   rules: [],
@@ -12,10 +12,11 @@ const DEFAULT_CONFIG: Sinc.Config = {
   excludes,
   tableOptions: {},
   refreshInterval: 30,
+  scopes: {},
 };
 
 let root_dir: string | undefined;
-let config: Sinc.Config | undefined;
+let config: Sinc.ScopedConfig | undefined;
 let manifest: SN.AppManifest | undefined;
 let config_path: string | undefined;
 let source_path: string | undefined;
@@ -125,7 +126,7 @@ export function getDefaultConfigFile(): string {
     `.trim();
 }
 
-async function loadConfig(skipConfigPath = false): Promise<Sinc.Config> {
+async function loadConfig(skipConfigPath = false): Promise<Sinc.ScopedConfig> {
   if (skipConfigPath) {
     logger.warn("Couldn't find config file. Loading default...");
     return DEFAULT_CONFIG;
@@ -133,25 +134,27 @@ async function loadConfig(skipConfigPath = false): Promise<Sinc.Config> {
   try {
     let configPath = getConfigPath();
     if (configPath) {
-      let projectConfig: Sinc.Config = (await import(configPath)).default;
+      let projectConfig: Sinc.ScopedConfig = (await import(configPath)).default;
       //merge in includes/excludes
       let {
         includes: pIncludes = {},
         excludes: pExcludes = {},
         tableOptions: pTableOptions = {},
+        scopes: pScopes = {},
       } = projectConfig;
       projectConfig.includes = Object.assign(includes, pIncludes);
       projectConfig.excludes = Object.assign(excludes, pExcludes);
       projectConfig.tableOptions = Object.assign(tableOptions, pTableOptions);
+      projectConfig.scopes = Object.assign(scopes, pScopes);
       return projectConfig;
     } else {
       logger.warn("Couldn't find config file. Loading default...");
       return DEFAULT_CONFIG;
     }
   } catch (e) {
-    let message
-    if (e instanceof Error) message = e.message
-    else message = String(e)
+    let message;
+    if (e instanceof Error) message = e.message;
+    else message = String(e);
     logger.warn(message);
     logger.warn("Couldn't find config file. Loading default...");
     return DEFAULT_CONFIG;

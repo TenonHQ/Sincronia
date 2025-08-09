@@ -25,6 +25,12 @@ export namespace Sinc {
     tableOptions: ITableOptionsMap;
     refreshInterval: number;
   }
+  interface ScopedConfigsMap {
+    [scope: string]: Config;
+  }
+  interface ScopedConfig extends Config {
+    scopes?: ScopedConfigsMap;
+  }
 
   interface ITableOptionsMap {
     [table: string]: ITableOptions;
@@ -81,7 +87,7 @@ export namespace Sinc {
     (
       context: FileContext,
       content: string,
-      options: any
+      options: any,
     ): Promise<PluginResults>;
   }
 

@@ -37,7 +37,7 @@ async function scopeCheck(
   }
 }
 
-function setLogLevel(args: Sinc.SharedCmdArgs) {
+export function setLogLevel(args: Sinc.SharedCmdArgs) {
   logger.setLogLevel(args.logLevel);
 }
 

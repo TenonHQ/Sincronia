@@ -25,17 +25,19 @@ let excludes: Sinc.TablePropMap = {
   content_block_detail: true,
   sp_portal: true,
   sc_cat_item_producer: true,
-  sys_impex_map: true
+  sys_impex_map: true,
 };
 
 let includes: Sinc.TablePropMap = {
   content_css: {
     style: {
-      type: "css"
-    }
-  }
+      type: "css",
+    },
+  },
 };
 
 let tableOptions: Sinc.ITableOptionsMap = {};
 
-export { includes, excludes, tableOptions };
+let scopes: Sinc.ScopedConfigsMap = {};
+
+export { includes, excludes, tableOptions, scopes };
