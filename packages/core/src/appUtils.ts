@@ -19,7 +19,7 @@ import { aggregateErrorMessages, allSettled } from "./genericUtils";
 const processFilesInManRec = async (
   recPath: string,
   rec: SN.MetaRecord,
-  forceWrite: boolean
+  forceWrite: boolean,
 ) => {
   const fileWrite = fUtils.writeSNFileCurry(forceWrite);
   const filePromises = rec.files.map((file) => fileWrite(file, recPath));
@@ -33,7 +33,7 @@ const processFilesInManRec = async (
 const processRecsInManTable = async (
   tablePath: string,
   table: SN.TableConfig,
-  forceWrite: boolean
+  forceWrite: boolean,
 ) => {
   const { records } = table;
   const recKeys = Object.keys(records);
@@ -50,21 +50,21 @@ const processRecsInManTable = async (
         processFilesInManRec(recKeyToPath(recKey), records[recKey], forceWrite),
       ];
     },
-    [] as Promise<void>[]
+    [] as Promise<void>[],
   );
   return Promise.all(filePromises);
 };
 
 const processTablesInManifest = async (
   tables: SN.TableMap,
-  forceWrite: boolean
+  forceWrite: boolean,
 ) => {
   const tableNames = Object.keys(tables);
   const tablePromises = tableNames.map((tableName) => {
     return processRecsInManTable(
       path.join(ConfigManager.getSourcePath(), tableName),
       tables[tableName],
-      forceWrite
+      forceWrite,
     );
   });
   await Promise.all(tablePromises);
@@ -72,12 +72,12 @@ const processTablesInManifest = async (
 
 export const processManifest = async (
   manifest: SN.AppManifest,
-  forceWrite = false
+  forceWrite = false,
 ): Promise<void> => {
   await processTablesInManifest(manifest.tables, forceWrite);
   await fUtils.writeFileForce(
     ConfigManager.getManifestPath(),
-    JSON.stringify(manifest, null, 2)
+    JSON.stringify(manifest, null, 2),
   );
 };
 
@@ -89,7 +89,7 @@ export const syncManifest = async () => {
     const client = defaultClient();
     const config = ConfigManager.getConfig();
     const newManifest = await unwrapSNResponse(
-      client.getManifest(curManifest.scope, config)
+      client.getManifest(curManifest.scope, config),
     );
 
     logger.info("Writing new manifest file...");
@@ -99,33 +99,35 @@ export const syncManifest = async () => {
     await processMissingFiles(newManifest);
     ConfigManager.updateManifest(newManifest);
   } catch (e) {
-    let message
-    if (e instanceof Error) message = e.message
-    else message = String(e)
+    let message;
+    if (e instanceof Error) message = e.message;
+    else message = String(e);
     logger.error("Encountered error while refreshing! ❌");
     logger.error(message.toString());
   }
 };
 
-const markFileMissing = (missingObj: SN.MissingFileTableMap) => (
-  table: string
-) => (recordId: string) => (file: SN.File) => {
-  if (!missingObj[table]) {
-    missingObj[table] = {};
-  }
-  if (!missingObj[table][recordId]) {
-    missingObj[table][recordId] = [];
-  }
-  const { name, type } = file;
-  missingObj[table][recordId].push({ name, type });
-};
+const markFileMissing =
+  (missingObj: SN.MissingFileTableMap) =>
+  (table: string) =>
+  (recordId: string) =>
+  (file: SN.File) => {
+    if (!missingObj[table]) {
+      missingObj[table] = {};
+    }
+    if (!missingObj[table][recordId]) {
+      missingObj[table][recordId] = [];
+    }
+    const { name, type } = file;
+    missingObj[table][recordId].push({ name, type });
+  };
 type MarkTableMissingFunc = ReturnType<typeof markFileMissing>;
 type MarkRecordMissingFunc = ReturnType<MarkTableMissingFunc>;
 type MarkFileMissingFunc = ReturnType<MarkRecordMissingFunc>;
 
 const markRecordMissing = (
   record: SN.MetaRecord,
-  missingFunc: MarkRecordMissingFunc
+  missingFunc: MarkRecordMissingFunc,
 ) => {
   record.files.forEach((file) => {
     missingFunc(record.sys_id)(file);
@@ -135,7 +137,7 @@ const markRecordMissing = (
 const markTableMissing = (
   table: SN.TableConfig,
   tableName: string,
-  missingFunc: MarkTableMissingFunc
+  missingFunc: MarkTableMissingFunc,
 ) => {
   Object.keys(table.records).forEach((recName) => {
     markRecordMissing(table.records[recName], missingFunc(tableName));
@@ -145,7 +147,7 @@ const markTableMissing = (
 const checkFilesForMissing = async (
   recPath: string,
   files: SN.File[],
-  missingFunc: MarkFileMissingFunc
+  missingFunc: MarkFileMissingFunc,
 ) => {
   const checkPromises = files.map(fUtils.SNFileExists(recPath));
   const checks = await Promise.all(checkPromises);
@@ -159,12 +161,12 @@ const checkFilesForMissing = async (
 const checkRecordsForMissing = async (
   tablePath: string,
   records: SN.TableConfigRecords,
-  missingFunc: MarkRecordMissingFunc
+  missingFunc: MarkRecordMissingFunc,
 ) => {
   const recNames = Object.keys(records);
   const recPaths = recNames.map(fUtils.appendToPath(tablePath));
   const checkPromises = recNames.map((recName, index) =>
-    fUtils.pathExists(recPaths[index])
+    fUtils.pathExists(recPaths[index]),
   );
   const checks = await Promise.all(checkPromises);
   const fileCheckPromises = checks.map(async (check, index) => {
@@ -177,7 +179,7 @@ const checkRecordsForMissing = async (
     await checkFilesForMissing(
       recPaths[index],
       record.files,
-      missingFunc(record.sys_id)
+      missingFunc(record.sys_id),
     );
   });
   await Promise.all(fileCheckPromises);
@@ -186,12 +188,12 @@ const checkRecordsForMissing = async (
 const checkTablesForMissing = async (
   topPath: string,
   tables: SN.TableMap,
-  missingFunc: MarkTableMissingFunc
+  missingFunc: MarkTableMissingFunc,
 ) => {
   const tableNames = Object.keys(tables);
   const tablePaths = tableNames.map(fUtils.appendToPath(topPath));
   const checkPromises = tableNames.map((tableName, index) =>
-    fUtils.pathExists(tablePaths[index])
+    fUtils.pathExists(tablePaths[index]),
   );
   const checks = await Promise.all(checkPromises);
 
@@ -204,14 +206,14 @@ const checkTablesForMissing = async (
     await checkRecordsForMissing(
       tablePaths[index],
       tables[tableName].records,
-      missingFunc(tableName)
+      missingFunc(tableName),
     );
   });
   await Promise.all(recCheckPromises);
 };
 
 export const findMissingFiles = async (
-  manifest: SN.AppManifest
+  manifest: SN.AppManifest,
 ): Promise<SN.MissingFileTableMap> => {
   const missing: SN.MissingFileTableMap = {};
   const { tables } = manifest;
@@ -219,21 +221,21 @@ export const findMissingFiles = async (
   await checkTablesForMissing(
     ConfigManager.getSourcePath(),
     tables,
-    missingTableFunc
+    missingTableFunc,
   );
   // missing gets mutated along the way as things get processed
   return missing;
 };
 
 export const processMissingFiles = async (
-  newManifest: SN.AppManifest
+  newManifest: SN.AppManifest,
 ): Promise<void> => {
   try {
     const missing = await findMissingFiles(newManifest);
     const { tableOptions = {} } = ConfigManager.getConfig();
     const client = defaultClient();
     const filesToProcess = await unwrapSNResponse(
-      client.getMissingFiles(missing, tableOptions)
+      client.getMissingFiles(missing, tableOptions),
     );
     await processTablesInManifest(filesToProcess, false);
   } catch (e) {
@@ -242,25 +244,28 @@ export const processMissingFiles = async (
 };
 
 export const groupAppFiles = (fileCtxs: Sinc.FileContext[]) => {
-  const combinedFiles = fileCtxs.reduce((groupMap, cur) => {
-    const { tableName, targetField, sys_id } = cur;
-    const key = `${tableName}-${sys_id}`;
-    const entry: Sinc.BuildableRecord = groupMap[key] ?? {
-      table: tableName,
-      sysId: sys_id,
-      fields: {},
-    };
-    const newEntry: Sinc.BuildableRecord = {
-      ...entry,
-      fields: { ...entry.fields, [targetField]: cur ?? "" },
-    };
-    return { ...groupMap, [key]: newEntry };
-  }, {} as Record<string, Sinc.BuildableRecord>);
+  const combinedFiles = fileCtxs.reduce(
+    (groupMap, cur) => {
+      const { tableName, targetField, sys_id } = cur;
+      const key = `${tableName}-${sys_id}`;
+      const entry: Sinc.BuildableRecord = groupMap[key] ?? {
+        table: tableName,
+        sysId: sys_id,
+        fields: {},
+      };
+      const newEntry: Sinc.BuildableRecord = {
+        ...entry,
+        fields: { ...entry.fields, [targetField]: cur ?? "" },
+      };
+      return { ...groupMap, [key]: newEntry };
+    },
+    {} as Record<string, Sinc.BuildableRecord>,
+  );
   return Object.values(combinedFiles);
 };
 
 export const getAppFileList = async (
-  paths: string | string[]
+  paths: string | string[],
 ): Promise<Sinc.BuildableRecord[]> => {
   const validPaths =
     typeof paths === "object"
@@ -273,7 +278,7 @@ export const getAppFileList = async (
 };
 
 const buildRec = async (
-  rec: Sinc.BuildableRecord
+  rec: Sinc.BuildableRecord,
 ): Promise<Sinc.RecBuildRes> => {
   const fields = Object.keys(rec.fields);
   const buildPromises = fields.map((field) => {
@@ -281,7 +286,7 @@ const buildRec = async (
   });
   const builtFiles = await allSettled(buildPromises);
   const buildSuccess = !builtFiles.find(
-    (buildRes) => buildRes.status === "rejected"
+    (buildRes) => buildRes.status === "rejected",
   );
   if (!buildSuccess) {
     return {
@@ -291,15 +296,18 @@ const buildRec = async (
           .filter((b): b is Sinc.FailPromiseResult => b.status === "rejected")
           .map((b) => b.reason),
         "Failed to build!",
-        (_, index) => `${index}`
+        (_, index) => `${index}`,
       ),
     };
   }
-  const builtRec = builtFiles.reduce((acc, buildRes, index) => {
-    const { value: content } = buildRes as Sinc.SuccessPromiseResult<string>;
-    const fieldName = fields[index];
-    return { ...acc, [fieldName]: content };
-  }, {} as Record<string, string>);
+  const builtRec = builtFiles.reduce(
+    (acc, buildRes, index) => {
+      const { value: content } = buildRes as Sinc.SuccessPromiseResult<string>;
+      const fieldName = fields[index];
+      return { ...acc, [fieldName]: content };
+    },
+    {} as Record<string, string>,
+  );
   return {
     success: true,
     builtRec,
@@ -311,7 +319,7 @@ const pushRec = async (
   table: string,
   sysId: string,
   builtRec: Record<string, string>,
-  summary?: string
+  summary?: string,
 ) => {
   const recSummary = summary ?? `${table} > ${sysId}`;
   try {
@@ -321,22 +329,22 @@ const pushRec = async (
       PUSH_RETRY_WAIT,
       (numTries: number) => {
         logger.debug(
-          `Failed to push ${recSummary}! Retrying with ${numTries} left...`
+          `Failed to push ${recSummary}! Retrying with ${numTries} left...`,
         );
-      }
+      },
     );
     return processPushResponse(pushRes, recSummary);
   } catch (e) {
-    let message
-    if (e instanceof Error) message = e.message
-    else message = String(e)
+    let message;
+    if (e instanceof Error) message = e.message;
+    else message = String(e);
     const errMsg = message || "Too many retries";
     return { success: false, message: `${recSummary} : ${errMsg}` };
   }
 };
 
 export const pushFiles = async (
-  recs: Sinc.BuildableRecord[]
+  recs: Sinc.BuildableRecord[],
 ): Promise<Sinc.PushResult[]> => {
   const client = defaultClient();
   const tick = getProgTick(logger.getLogLevel(), recs.length * 2) || (() => {});
@@ -344,7 +352,7 @@ export const pushFiles = async (
     const fieldNames = Object.keys(rec.fields);
     const recSummary = summarizeRecord(
       rec.table,
-      rec.fields[fieldNames[0]].name
+      rec.fields[fieldNames[0]].name,
     );
     const buildRes = await buildRec(rec);
     tick();
@@ -357,7 +365,7 @@ export const pushFiles = async (
       rec.table,
       rec.sysId,
       buildRes.builtRec,
-      recSummary
+      recSummary,
     );
     tick();
     return pushRes;
@@ -370,7 +378,7 @@ export const summarizeRecord = (table: string, recDescriptor: string): string =>
 
 const getProgTick = (
   logLevel: string,
-  total: number
+  total: number,
 ): (() => void) | undefined => {
   if (logLevel === "info") {
     const progBar = new ProgressBar(":bar (:percent)", {
@@ -388,7 +396,7 @@ const getProgTick = (
 const writeBuildFile = async (
   preBuild: Sinc.BuildableRecord,
   buildRes: Sinc.RecBuildSuccess,
-  summary?: string
+  summary?: string,
 ): Promise<Sinc.BuildResult> => {
   const { fields, table, sysId } = preBuild;
   const recSummary = summary ?? `${table} > ${sysId}`;
@@ -403,14 +411,14 @@ const writeBuildFile = async (
     const buildExt = fUtils.getBuildExt(
       fieldCtx.tableName,
       fieldCtx.name,
-      fieldCtx.targetField
+      fieldCtx.targetField,
     );
     const relPathNewExt = `${relPathNoExt}.${buildExt}`;
     const buildFilePath = path.join(buildPath, relPathNewExt);
     await fUtils.createDirRecursively(path.dirname(buildFilePath));
     const writeResult = await fUtils.writeFileForce(
       buildFilePath,
-      buildRes.builtRec[fieldCtx.targetField]
+      buildRes.builtRec[fieldCtx.targetField],
     );
     return writeResult;
   });
@@ -426,7 +434,7 @@ const writeBuildFile = async (
 };
 
 export const buildFiles = async (
-  fileList: Sinc.BuildableRecord[]
+  fileList: Sinc.BuildableRecord[],
 ): Promise<Sinc.BuildResult[]> => {
   const tick =
     getProgTick(logger.getLogLevel(), fileList.length * 2) || (() => {});
@@ -453,7 +461,7 @@ export const swapScope = async (currentScope: string): Promise<SN.ScopeObj> => {
     const client = defaultClient();
     const scopeId = await unwrapTableAPIFirstItem(
       client.getScopeId(currentScope),
-      "sys_id"
+      "sys_id",
     );
     await swapServerScope(scopeId);
     const scopeObj = await unwrapSNResponse(client.getCurrentScope());
@@ -468,21 +476,21 @@ const swapServerScope = async (scopeId: string): Promise<void> => {
     const client = defaultClient();
     const userSysId = await unwrapTableAPIFirstItem(
       client.getUserSysId(),
-      "sys_id"
+      "sys_id",
     );
     const curAppUserPrefId =
       (await unwrapTableAPIFirstItem(
         client.getCurrentAppUserPrefSysId(userSysId),
-        "sys_id"
+        "sys_id",
       )) || "";
     // If not user pref record exists, create it.
     if (curAppUserPrefId !== "")
       await client.updateCurrentAppUserPref(scopeId, curAppUserPrefId);
     else await client.createCurrentAppUserPref(scopeId, userSysId);
   } catch (e) {
-    let message
-    if (e instanceof Error) message = e.message
-    else message = String(e)
+    let message;
+    if (e instanceof Error) message = e.message;
+    else message = String(e);
     logger.error(message);
     throw e;
   }
@@ -496,21 +504,21 @@ export const createAndAssignUpdateSet = async (updateSetName = "") => {
   logger.info(`Update Set Name: ${updateSetName}`);
   const client = defaultClient();
   const { sys_id: updateSetSysId } = await unwrapSNResponse(
-    client.createUpdateSet(updateSetName)
+    client.createUpdateSet(updateSetName),
   );
   const userSysId = await unwrapTableAPIFirstItem(
     client.getUserSysId(),
-    "sys_id"
+    "sys_id",
   );
   const curUpdateSetUserPrefId = await unwrapTableAPIFirstItem(
     client.getCurrentUpdateSetUserPref(userSysId),
-    "sys_id"
+    "sys_id",
   );
 
   if (curUpdateSetUserPrefId !== "") {
     await client.updateCurrentUpdateSetUserPref(
       updateSetSysId,
-      curUpdateSetUserPrefId
+      curUpdateSetUserPrefId,
     );
   } else {
     await client.createCurrentUpdateSetUserPref(updateSetSysId, userSysId);
@@ -522,7 +530,7 @@ export const createAndAssignUpdateSet = async (updateSetName = "") => {
 };
 
 export const checkScope = async (
-  swap: boolean
+  swap: boolean,
 ): Promise<Sinc.ScopeCheckResult> => {
   try {
     const man = ConfigManager.getManifest();

@@ -30,12 +30,12 @@ export async function startWizard() {
       await downloadApp(loginAnswers, selectedApp);
     }
     logger.success(
-      "You are all set up 👍 Try running 'npx sinc dev' to begin development mode."
+      "You are all set up 👍 Try running 'npx sinc dev' to begin development mode.",
     );
     await ConfigManager.loadConfigs();
   } catch (e) {
     logger.error(
-      "Failed to setup application. Check to see that your credentials are correct and you have the update set installed on your instance."
+      "Failed to setup application. Check to see that your credentials are correct and you have the update set installed on your instance.",
     );
     return;
   }
@@ -125,12 +125,14 @@ async function downloadApp(answers: Sinc.LoginAnswers, scope: string) {
   try {
     const client = defaultClient();
     const config = ConfigManager.getConfig();
-    const man:any = await unwrapSNResponse(client.getManifest(scope, config, true));
+    const man: any = await unwrapSNResponse(
+      client.getManifest(scope, config, true),
+    );
     await AppUtils.processManifest(man);
   } catch (e) {
-    let message
-    if (e instanceof Error) message = e.message
-    else message = String(e)
+    let message;
+    if (e instanceof Error) message = e.message;
+    else message = String(e);
     logger.error(message);
     throw new Error("Failed to download files!");
   }

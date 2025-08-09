@@ -30,7 +30,7 @@ async function scopeCheck(
     }
   } catch (e) {
     logger.error(
-      "Failed to check your scope! You may want to make sure your project is configured correctly or run `npx sinc init`"
+      "Failed to check your scope! You may want to make sure your project is configured correctly or run `npx sinc init`",
     );
     // Throw exception to register this as an error
     process.exit(1);
@@ -59,7 +59,7 @@ export async function devCommand(args: Sinc.SharedCmdArgs) {
 }
 export async function refreshCommand(
   args: Sinc.SharedCmdArgs,
-  log: boolean = true
+  log: boolean = true,
 ) {
   setLogLevel(args);
   scopeCheck(async () => {
@@ -121,7 +121,7 @@ export async function pushCommand(args: Sinc.PushCmdArgs): Promise<void> {
 
         const newUpdateSet = await AppUtils.createAndAssignUpdateSet(updateSet);
         logger.debug(
-          `New Update Set Created(${newUpdateSet.name}) sys_id:${newUpdateSet.id}`
+          `New Update Set Created(${newUpdateSet.name}) sys_id:${newUpdateSet.id}`,
         );
       }
       const pushResults = await AppUtils.pushFiles(fileList);
@@ -150,7 +150,7 @@ export async function downloadCommand(args: Sinc.CmdDownloadArgs) {
     const client = defaultClient();
     const config = ConfigManager.getConfig();
     const man = await unwrapSNResponse(
-      client.getManifest(args.scope, config, true)
+      client.getManifest(args.scope, config, true),
     );
     logger.info("Creating local files from manifest...");
     await AppUtils.processManifest(man, true);
