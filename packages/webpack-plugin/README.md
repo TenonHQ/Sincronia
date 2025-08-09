@@ -12,10 +12,10 @@ npm i -D @sincronia/webpack-plugin
 
 ## Options
 
-| Key               | Type                                                | Default  | Description                                                                                                                                                                                                               |
-| ----------------- | --------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `configGenerator` | `(context:Sinc.FileContext)=>webpack.Configuration` | `()=>{}` | Function that can generate a webpack configuration object. A [Sinc.FileContext](https://github.com/nuvolo/sincronia/blob/bdb/packages/types/index.d.ts) is passed in so that you can substitute options using the context |
-| `webpackConfig`   | `webpack.Configuration`                             | `{}`     | Same as [webpack.config.js](https://webpack.js.org/configuration/) object                                                                                                                                                 |
+| Key               | Type                                                | Default  | Description                                                                                                                                                                                                              |
+| ----------------- | --------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `configGenerator` | `(context:Sinc.FileContext)=>webpack.Configuration` | `()=>{}` | Function that can generate a webpack configuration object. A [Sinc.FileContext](https://github.com/tenon/sincronia/blob/bdb/packages/types/index.d.ts) is passed in so that you can substitute options using the context |
+| `webpackConfig`   | `webpack.Configuration`                             | `{}`     | Same as [webpack.config.js](https://webpack.js.org/configuration/) object                                                                                                                                                |
 
 ### Order of Configurations
 
@@ -45,5 +45,3 @@ module.exports={
   }
 };
 ```
-
-
