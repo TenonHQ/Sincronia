@@ -8,11 +8,17 @@ import { logger } from "./Logger";
 import path from "path";
 import { snClient, unwrapSNResponse, defaultClient } from "./snClient";
 
-export async function startWizard() {
+export async function startWizard(args: Sinc.SharedCmdArgs) {
   let loginAnswers = await getLoginInfo();
   try {
     let { username, password, instance } = loginAnswers;
-    const client = snClient(`https://${instance}/`, username, password);
+    let instanceUrl = instance.startsWith("http")
+      ? instance
+      : `https://${instance}`;
+    if (!instanceUrl.endsWith("/")) {
+      instanceUrl += `${instanceUrl}/`;
+    }
+    const client = snClient(instanceUrl, username, password);
     const apps = await unwrapSNResponse(client.getAppList());
     await setupDotEnv(loginAnswers);
     let hasConfig = await checkConfig();
