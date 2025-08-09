@@ -1,4 +1,4 @@
-[![Build Status](https://dev.azure.com/nuvoengineering/sincronia/_apis/build/status/nuvolo.sincronia?branchName=dev)](https://dev.azure.com/nuvoengineering/sincronia/_build/latest?definitionId=15&branchName=dev)
+[![Build Status](https://dev.azure.com/nuvoengineering/sincronia/_apis/build/status/tenon.sincronia?branchName=dev)](https://dev.azure.com/nuvoengineering/sincronia/_build/latest?definitionId=15&branchName=dev)
 
 # Sincronia
 
@@ -57,7 +57,7 @@ In order to use Sincronia, you will need:
 
 1. Create a folder to store the scoped app code.
 2. In a terminal, run `npm init` inside the newly created folder and follow the instructions to set up your node module.
-3. Import [the scoped app](https://github.com/nuvolo/sincronia-server-scoped-app) from source control into your instance.
+3. Import [the scoped app](https://github.com/tenon/sincronia-server-scoped-app) from source control into your instance.
 4. Install `@sincronia/core`
 
 ```bash
@@ -107,9 +107,9 @@ npx sinc build --diff master
 
 ### Workflow
 
-![Development Workflow](https://github.com/nuvolo/sincronia/raw/master/docs/images/sincronia-development.png)
+![Development Workflow](https://github.com/tenon/sincronia/raw/master/docs/images/sincronia-development.png)
 
-![Deployment Workflow](https://github.com/nuvolo/sincronia/raw/master/docs/images/sincronia-deployment.png)
+![Deployment Workflow](https://github.com/tenon/sincronia/raw/master/docs/images/sincronia-deployment.png)
 
 ### File Structure
 
@@ -259,7 +259,7 @@ If you find that your config is getting too large, you can use typical nodejs te
 
 ### I'm not seeing all my code files!
 
-When you first set up your project, you may notice you may have more files than you want to manage or some files are missing. This can be easily resolved by tweaking your `includes` and `excludes` section of your `sinc.config.js`. Sincronia attempts to establish sane defaults for these values [here](https://github.com/nuvolo/sincronia/blob/master/packages/core/src/defaultManifestConfig.ts).
+When you first set up your project, you may notice you may have more files than you want to manage or some files are missing. This can be easily resolved by tweaking your `includes` and `excludes` section of your `sinc.config.js`. Sincronia attempts to establish sane defaults for these values [here](https://github.com/tenon/sincronia/blob/master/packages/core/src/defaultManifestConfig.ts).
 
 If you think there is something wrong with the default setup, feel free to submit a pull request! 🐙👍
 
@@ -390,15 +390,15 @@ Why is this not automatic? Deleting files can be a dangerous game and it should 
 
 ## Examples
 
-For an example project, we uploaded the [server side code for Sincronia](https://github.com/nuvolo/sincronia-server)! Feel free to contribute to that code if you'd like 🐙
+For an example project, we uploaded the [server side code for Sincronia](https://github.com/tenon/sincronia-server)! Feel free to contribute to that code if you'd like 🐙
 
 ## Plugin List
 
-| Name                                                                                                                 | Description                                 |
-| -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| [@sincronia/babel-plugin](https://github.com/nuvolo/sincronia/blob/master/packages/babel-plugin/README.md)           | Runs Babel on .js/.ts files                 |
-| [@sincronia/prettier-plugin](https://github.com/nuvolo/sincronia/blob/master/packages/prettier-plugin/README.md)     | Prettifies your output files using Prettier |
-| [@sincronia/sass-plugin](https://github.com/nuvolo/sincronia/blob/master/packages/sass-plugin/README.md)             | Runs the Sass compiler on your files        |
-| [@sincronia/typescript-plugin](https://github.com/nuvolo/sincronia/blob/master/packages/typescript-plugin/README.md) | Type checks and compiles TypeScript files   |
-| [@sincronia/webpack-plugin](https://github.com/nuvolo/sincronia/blob/master/packages/webpack-plugin/README.md)       | Creates Webpack bundles with your files     |
-| [@sincronia/eslint-plugin](https://github.com/nuvolo/sincronia/blob/master/packages/eslint-plugin/README.md)         | Runs ESLint on your files on build          |
+| Name                                                                                                                | Description                                 |
+| ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| [@sincronia/babel-plugin](https://github.com/tenon/sincronia/blob/master/packages/babel-plugin/README.md)           | Runs Babel on .js/.ts files                 |
+| [@sincronia/prettier-plugin](https://github.com/tenon/sincronia/blob/master/packages/prettier-plugin/README.md)     | Prettifies your output files using Prettier |
+| [@sincronia/sass-plugin](https://github.com/tenon/sincronia/blob/master/packages/sass-plugin/README.md)             | Runs the Sass compiler on your files        |
+| [@sincronia/typescript-plugin](https://github.com/tenon/sincronia/blob/master/packages/typescript-plugin/README.md) | Type checks and compiles TypeScript files   |
+| [@sincronia/webpack-plugin](https://github.com/tenon/sincronia/blob/master/packages/webpack-plugin/README.md)       | Creates Webpack bundles with your files     |
+| [@sincronia/eslint-plugin](https://github.com/tenon/sincronia/blob/master/packages/eslint-plugin/README.md)         | Runs ESLint on your files on build          |
