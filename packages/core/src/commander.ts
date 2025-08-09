@@ -7,14 +7,14 @@ import {
   initCommand,
   buildCommand,
   deployCommand,
-  statusCommand
+  statusCommand,
 } from "./commands";
 import yargs from "yargs";
 export async function initCommands() {
   const sharedOptions = {
     logLevel: {
-      default: "info"
-    }
+      default: "info",
+    },
   };
 
   yargs
@@ -23,45 +23,45 @@ export async function initCommands() {
       ["refresh", "r"],
       "Refresh Manifest and download new files since last refresh",
       sharedOptions,
-      refreshCommand
+      refreshCommand,
     )
     .command(
       ["push [target]"],
       "[DESTRUCTIVE] Push all files from current local files to ServiceNow instance.",
-      cmdArgs => {
+      (cmdArgs) => {
         cmdArgs.options({
           ...sharedOptions,
           diff: {
             alias: "d",
             type: "string",
             default: "",
-            describe: "Specify branch to do git diff against"
+            describe: "Specify branch to do git diff against",
           },
           scopeSwap: {
             alias: "ss",
             type: "boolean",
             default: false,
             describe:
-              "Will auto-swap to the correct scope for the files being pushed"
+              "Will auto-swap to the correct scope for the files being pushed",
           },
           updateSet: {
             alias: "us",
             type: "string",
             default: "",
             describe:
-              "Will create a new update set with the provided anme to store all changes into"
+              "Will create a new update set with the provided anme to store all changes into",
           },
           ci: {
             type: "boolean",
             default: false,
-            describe: "Will skip confirmation prompts during the push process"
-          }
+            describe: "Will skip confirmation prompts during the push process",
+          },
         });
         return cmdArgs;
       },
       (args: TSFIXME) => {
         pushCommand(args as Sinc.PushCmdArgs);
-      }
+      },
     )
     .command(
       "download <scope>",
@@ -69,7 +69,7 @@ export async function initCommands() {
       sharedOptions,
       (args: TSFIXME) => {
         downloadCommand(args as Sinc.CmdDownloadArgs);
-      }
+      },
     )
     .command(
       "init",
@@ -80,33 +80,33 @@ export async function initCommands() {
     .command(
       "build",
       "Build application files locally",
-      cmdArgs => {
+      (cmdArgs) => {
         cmdArgs.options({
           ...sharedOptions,
           diff: {
             alias: "d",
             type: "string",
             default: "",
-            describe: "Specify branch to do git diff against"
-          }
+            describe: "Specify branch to do git diff against",
+          },
         });
         return cmdArgs;
       },
       (args: TSFIXME) => {
         buildCommand(args);
-      }
+      },
     )
     .command(
       "deploy",
       "Deploy local build files to the scoped application",
       sharedOptions,
-      deployCommand
+      deployCommand,
     )
     .command(
       "status",
       "Get information about the connected instance",
       sharedOptions,
-      statusCommand
+      statusCommand,
     )
     .help().argv;
 }
