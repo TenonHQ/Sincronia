@@ -32,28 +32,69 @@ async function processManifestForScope(
   sourceDirectory: string,
   forceWrite = false
 ): Promise<void> {
-  // Process each table in the manifest
-  const tables = manifest.tables || {};
-  const tableNames = Object.keys(tables);
-  
-  for (const tableName of tableNames) {
-    const tableRecords = tables[tableName];
-    const tablePath = path.join(sourceDirectory, tableName);
+  try {
+    // Ensure the source directory exists
+    logger.info(`Creating source directory: ${sourceDirectory}`);
+    try {
+      await fsp.mkdir(sourceDirectory, { recursive: true });
+      logger.info(`Successfully created directory: ${sourceDirectory}`);
+    } catch (dirError) {
+      logger.error(`Failed to create source directory ${sourceDirectory}: ${dirError}`);
+      throw dirError;
+    }
     
-    // Process each record in the table
-    const recordNames = Object.keys(tableRecords.records || {});
-    for (const recordName of recordNames) {
-      const record = tableRecords.records[recordName];
+    // Process each table in the manifest
+    const tables = manifest.tables || {};
+    const tableNames = Object.keys(tables);
+    logger.info(`Processing ${tableNames.length} tables`);
+    logger.debug(`Table names: ${tableNames.join(', ')}`);
+    
+    for (const tableName of tableNames) {
+      const tableRecords = tables[tableName];
+      const tablePath = path.join(sourceDirectory, tableName);
       
-      // Process each file in the record
-      for (const file of record.files || []) {
-        const filePath = path.join(tablePath, recordName, `${file.name}.${file.type}`);
-        const fileContent = file.content || "";
+      // Process each record in the table
+      const recordNames = Object.keys(tableRecords.records || {});
+      
+      logger.debug(`Processing ${recordNames.length} records in table ${tableName}`);
+      
+      for (const recordName of recordNames) {
+        const record = tableRecords.records[recordName];
+        // Use the record's name property instead of the key for the directory name
+        const recordDirName = record.name || recordName;
+        const recordPath = path.join(tablePath, recordDirName);
         
-        // Create the file
-        await fUtils.writeFileForce(filePath, fileContent);
+        logger.debug(`Processing record: ${recordDirName} with ${record.files?.length || 0} files`);
+        
+        // Ensure the record directory exists
+        await fsp.mkdir(recordPath, { recursive: true });
+        
+        // Process each file in the record
+        for (const file of record.files || []) {
+          const filePath = path.join(recordPath, `${file.name}.${file.type}`);
+          const fileContent = file.content || "";
+          
+          // Ensure the parent directory exists before writing the file
+          const fileDir = path.dirname(filePath);
+          logger.debug(`Creating directory: ${fileDir}`);
+          await fsp.mkdir(fileDir, { recursive: true });
+          
+          // Create the file
+          logger.debug(`Writing file: ${filePath}`);
+          try {
+            await fsp.writeFile(filePath, fileContent, 'utf8');
+          } catch (writeError) {
+            logger.error(`Failed to write file ${filePath}: ${writeError}`);
+            throw writeError;
+          }
+        }
       }
     }
+    
+    logger.info(`Successfully processed files for ${sourceDirectory}`);
+  } catch (error) {
+    logger.error(`Error in processManifestForScope: ${error}`);
+    throw error;
   }
 }
 
@@ -98,6 +139,7 @@ async function processScope(scopeName: string, scopeConfig: ScopeConfig | boolea
     
     // Process the manifest to create local files in the correct directory
     logger.info(`Processing manifest and creating local files for ${scopeName}...`);
+    logger.info(`Manifest has ${Object.keys(manifest?.tables || {}).length} tables`);
     await processManifestForScope(manifest, sourceDirectory, true);
     
     // Create the scope-specific manifest structure

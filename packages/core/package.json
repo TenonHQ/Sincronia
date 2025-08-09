@@ -1,6 +1,6 @@
 {
   "name": "@tenonhq/sincronia-core",
-  "version": "0.0.17",
+  "version": "0.0.20",
   "description": "Next-gen file syncer",
   "license": "GPL-3.0",
   "main": "./dist/index.js",
@@ -12,7 +12,7 @@
     "version:bump": "node bump-version.js",
     "version:bump:commit": "./bump-version.sh --commit",
     "version:bump:release": "./bump-version.sh --commit --tag --push",
-    "postpublish": "version:bump"
+    "postpublish": "npm run version:bump"
   },
   "repository": {
     "type": "git",
