@@ -1,4 +1,4 @@
-import { SN, Sinc } from "@sincronia/types";
+import { SN, Sinc } from "@tenonhq/sincronia-types";
 import path from "path";
 import { promises as fsp } from "fs";
 import { logger } from "./Logger";

@@ -1,4 +1,4 @@
-import { SN, Sinc } from "@sincronia/types";
+import { SN, Sinc } from "@tenonhq/sincronia-types";
 import inquirer from "inquirer";
 import * as ConfigManager from "./config";
 import * as AppUtils from "./appUtils";

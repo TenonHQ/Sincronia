@@ -1,50 +1,49 @@
-import { SN, Sinc } from "@sincronia/types";
+import { SN, Sinc } from "@tenonhq/sincronia-types";
 import { PATH_DELIMITER } from "./constants";
 import fs, { promises as fsp } from "fs";
 import path from "path";
 import * as ConfigManager from "./config";
 
-export const SNFileExists = (parentDirPath: string) => async (
-  file: SN.File
-): Promise<boolean> => {
-  try {
-    const files = await fsp.readdir(parentDirPath);
-    const reg = new RegExp(`${file.name}\..*$`);
-    return !!files.find((f) => reg.test(f));
-  } catch (e) {
-    return false;
-  }
-};
+export const SNFileExists =
+  (parentDirPath: string) =>
+  async (file: SN.File): Promise<boolean> => {
+    try {
+      const files = await fsp.readdir(parentDirPath);
+      const reg = new RegExp(`${file.name}\..*$`);
+      return !!files.find((f) => reg.test(f));
+    } catch (e) {
+      return false;
+    }
+  };
 
 export const writeManifestFile = async (man: SN.AppManifest) => {
   return fsp.writeFile(
     ConfigManager.getManifestPath(),
-    JSON.stringify(man, null, 2)
+    JSON.stringify(man, null, 2),
   );
 };
 
-export const writeSNFileCurry = (checkExists: boolean) => async (
-  file: SN.File,
-  parentPath: string
-): Promise<void> => {
-  let { name, type, content = "" } = file;
-  // content can sometimes be null
-  if (!content) {
-    content = "";
-  }
-  const write = async () => {
+export const writeSNFileCurry =
+  (checkExists: boolean) =>
+  async (file: SN.File, parentPath: string): Promise<void> => {
+    let { name, type, content = "" } = file;
+    // content can sometimes be null
+    if (!content) {
+      content = "";
+    }
+    const write = async () => {
       const fullPath = path.join(parentPath, `${name}.${type}`);
       return await fsp.writeFile(fullPath, content);
     };
     if (checkExists) {
-    const exists = await SNFileExists(parentPath)(file);
-    if (!exists) {
-      await write();
+      const exists = await SNFileExists(parentPath)(file);
+      if (!exists) {
+        await write();
+      }
+    } else {
+      write();
     }
-  } else {
-    write();
-  }
-};
+  };
 
 export const createDirRecursively = async (path: string): Promise<void> => {
   await fsp.mkdir(path, { recursive: true });
@@ -59,8 +58,10 @@ export const pathExists = async (path: string): Promise<boolean> => {
   }
 };
 
-export const appendToPath = (prefix: string) => (suffix: string): string =>
-  path.join(prefix, suffix);
+export const appendToPath =
+  (prefix: string) =>
+  (suffix: string): string =>
+    path.join(prefix, suffix);
 
 /**
  * Detects if a path is under a parent directory
@@ -69,7 +70,7 @@ export const appendToPath = (prefix: string) => (suffix: string): string =>
  */
 export const isUnderPath = (
   parentPath: string,
-  potentialChildPath: string
+  potentialChildPath: string,
 ): boolean => {
   const parentTokens = parentPath.split(path.sep);
   const childTokens = potentialChildPath.split(path.sep);
@@ -87,7 +88,7 @@ const getFileExtension = (filePath: string): string => {
 export const getBuildExt = (
   table: string,
   recordName: string,
-  field: string
+  field: string,
 ): string => {
   const manifest = ConfigManager.getManifest();
   if (!manifest) {
@@ -104,7 +105,7 @@ export const getBuildExt = (
 const getTargetFieldFromPath = (
   filePath: string,
   table: string,
-  ext: string
+  ext: string,
 ): string => {
   return table === "sys_atf_step"
     ? "inputs.script"
@@ -112,7 +113,7 @@ const getTargetFieldFromPath = (
 };
 
 export const getFileContextFromPath = (
-  filePath: string
+  filePath: string,
 ): Sinc.FileContext | undefined => {
   const ext = getFileExtension(filePath);
   const [tableName, recordName] = path
@@ -168,7 +169,7 @@ export const getPathsInPath = async (p: string): Promise<string[]> => {
   } else {
     const childPaths = await fsp.readdir(p);
     const pathPromises = childPaths.map((childPath) =>
-      getPathsInPath(path.resolve(p, childPath))
+      getPathsInPath(path.resolve(p, childPath)),
     );
     const stackedPaths = await Promise.all(pathPromises);
     return stackedPaths.flat();
@@ -183,7 +184,7 @@ export const isValidPath = async (path: string): Promise<boolean> => {
 };
 
 export const encodedPathsToFilePaths = async (
-  encodedPaths: string
+  encodedPaths: string,
 ): Promise<string[]> => {
   const pathSplits = splitEncodedPaths(encodedPaths);
   const validChecks = await Promise.all(pathSplits.map(isValidPath));
@@ -204,7 +205,7 @@ export const summarizeFile = (ctx: Sinc.FileContext): string => {
 export const writeBuildFile = async (
   folderPath: string,
   newPath: string,
-  fileContents: string
+  fileContents: string,
 ) => {
   try {
     await fsp.access(folderPath, fs.constants.F_OK);

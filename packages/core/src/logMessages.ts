@@ -1,4 +1,4 @@
-import { Sinc } from "@sincronia/types";
+import { Sinc } from "@tenonhq/sincronia-types";
 import { logger } from "./Logger";
 import chalk from "chalk";
 
@@ -9,15 +9,15 @@ export function scopeCheckMessage(scopeCheck: Sinc.ScopeCheckResult) {
   let mScope = chalk.blue(scopeCheck.manifestScope);
 
   logger.error(
-    `Your user's scope is set to ${sScope} but this project is configured for the ${mScope} scope. Please switch scopes in ServiceNow to continue.`
+    `Your user's scope is set to ${sScope} but this project is configured for the ${mScope} scope. Please switch scopes in ServiceNow to continue.`,
   );
 }
 
 export function devModeLog() {
   logger.info(
     `Dev mode started! Watching for changes...[${chalk.red(
-      "Press CTRL-C to Stop"
-    )}]\n`
+      "Press CTRL-C to Stop",
+    )}]\n`,
   );
 }
 
@@ -30,7 +30,7 @@ function parseError(err: Error): string {
 
 export function logFilePush(
   context: Sinc.FileContext,
-  res: Sinc.PushResult
+  res: Sinc.PushResult,
 ): void {
   const { message, success } = res;
   const label = chalk.bold.blue;
@@ -56,11 +56,11 @@ function multiLog(
   resultSet: boolean[],
   successMessage: string,
   errorMessage: string,
-  err?: Error
+  err?: Error,
 ) {
   if (success) {
     let fileNum = chalk.bold.blue(
-      resultSet.filter(result => result).length + ""
+      resultSet.filter((result) => result).length + "",
     );
     let message = chalk.green(`${fileNum} files ${successMessage}`);
     logger.info(message);
@@ -77,7 +77,7 @@ export function logDeploy(
   files: Sinc.FileContext[],
   success: boolean,
   resultSet: boolean[],
-  err?: Error
+  err?: Error,
 ) {
   multiLog(
     files,
@@ -85,7 +85,7 @@ export function logDeploy(
     resultSet,
     "successfully deployed",
     "Failed to deploy files",
-    err
+    err,
   );
 }
 
@@ -95,9 +95,9 @@ function spacer() {
 
 const logOperationResults = (
   results: Sinc.PushResult[] | Sinc.BuildResult[],
-  operation: string
+  operation: string,
 ): void => {
-  const unsuccessful = results.filter(r => !r.success);
+  const unsuccessful = results.filter((r) => !r.success);
   const logr = logger.getInternalLogger();
   const label = (content: string) => chalk.bold.blue(content);
   const success = (content: string) => chalk.bold.green(content);
@@ -105,11 +105,11 @@ const logOperationResults = (
   logr.info(`${label("Total Records:")} ${results.length}`);
   logr.info(
     `${label(`Successful ${operation}:`)} ${success(
-      results.length - unsuccessful.length + ""
-    )}`
+      results.length - unsuccessful.length + "",
+    )}`,
   );
   logr.info(
-    `${label(`Failed ${operation}:`)} ${fail(unsuccessful.length + "")}`
+    `${label(`Failed ${operation}:`)} ${fail(unsuccessful.length + "")}`,
   );
   if (unsuccessful.length === 0) {
     return;

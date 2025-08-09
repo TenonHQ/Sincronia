@@ -2,7 +2,7 @@ import chokidar from "chokidar";
 import { logFilePush } from "./logMessages";
 import { debounce } from "lodash";
 import { getFileContextFromPath } from "./FileUtils";
-import { Sinc } from "@sincronia/types";
+import { Sinc } from "@tenonhq/sincronia-types";
 import { groupAppFiles, pushFiles } from "./appUtils";
 const DEBOUNCE_MS = 300;
 let pushQueue: string[] = [];

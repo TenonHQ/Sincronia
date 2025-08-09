@@ -1,4 +1,4 @@
-import { Sinc, SN } from "@sincronia/types";
+import { Sinc, SN } from "@tenonhq/sincronia-types";
 import axios, { AxiosPromise, AxiosResponse } from "axios";
 import rateLimit from "axios-rate-limit";
 import { wait } from "./genericUtils";
@@ -8,7 +8,7 @@ export const retryOnErr = async <T>(
   f: () => Promise<T>,
   allowedRetries: number,
   msBetween = 0,
-  onRetry?: (retriesLeft: number) => void
+  onRetry?: (retriesLeft: number) => void,
 ): Promise<T> => {
   try {
     return await f();
@@ -27,7 +27,7 @@ export const retryOnErr = async <T>(
 
 export const processPushResponse = (
   response: AxiosResponse,
-  recSummary: string
+  recSummary: string,
 ): Sinc.PushResult => {
   const { status } = response;
   if (status === 404) {
@@ -51,7 +51,7 @@ export const processPushResponse = (
 export const snClient = (
   baseURL: string,
   username: string,
-  password: string
+  password: string,
 ) => {
   const client = rateLimit(
     axios.create({
@@ -65,7 +65,7 @@ export const snClient = (
       },
       baseURL,
     }),
-    { maxRPS: 20 }
+    { maxRPS: 20 },
   );
 
   const getAppList = () => {
@@ -86,7 +86,7 @@ export const snClient = (
   const updateRecord = (
     table: string,
     recordId: string,
-    fields: Record<string, string>
+    fields: Record<string, string>,
   ) => {
     if (table === "sys_atf_step") {
       updateATFfile(fields["inputs.script"], recordId);
@@ -130,7 +130,7 @@ export const snClient = (
 
   const updateCurrentAppUserPref = (
     appSysId: string,
-    userPrefSysId: string
+    userPrefSysId: string,
   ) => {
     const endpoint = `api/now/table/sys_user_preference/${userPrefSysId}`;
     return client.put(endpoint, { value: appSysId });
@@ -172,7 +172,7 @@ export const snClient = (
   };
   const updateCurrentUpdateSetUserPref = (
     updateSetSysId: string,
-    userPrefSysId: string
+    userPrefSysId: string,
   ) => {
     const endpoint = `api/now/table/sys_user_preference/${userPrefSysId}`;
     return client.put(endpoint, { value: updateSetSysId });
@@ -180,7 +180,7 @@ export const snClient = (
 
   const createCurrentUpdateSetUserPref = (
     updateSetSysId: string,
-    userSysId: string
+    userSysId: string,
   ) => {
     const endpoint = `api/now/table/sys_user_preference`;
     return client.put(endpoint, {
@@ -193,7 +193,7 @@ export const snClient = (
 
   const getMissingFiles = (
     missingFiles: SN.MissingFileTableMap,
-    tableOptions: Sinc.ITableOptionsMap
+    tableOptions: Sinc.ITableOptionsMap,
   ) => {
     const endpoint = `api/x_nuvo_sinc/sinc/bulkDownload`;
     type TableMap = Sinc.SNAPIResponse<SN.TableMap>;
@@ -247,15 +247,15 @@ export const defaultClient = () => {
 export type SNClient = ReturnType<typeof snClient>;
 
 export const unwrapSNResponse = async <T>(
-  clientPromise: AxiosPromise<Sinc.SNAPIResponse<T>>
+  clientPromise: AxiosPromise<Sinc.SNAPIResponse<T>>,
 ): Promise<T> => {
   try {
     const resp = await clientPromise;
     return resp.data.result;
   } catch (e) {
-    let message
-    if (e instanceof Error) message = e.message
-    else message = String(e)
+    let message;
+    if (e instanceof Error) message = e.message;
+    else message = String(e);
     logger.error("Error processing server response");
     logger.error(message);
     throw e;
@@ -263,15 +263,15 @@ export const unwrapSNResponse = async <T>(
 };
 
 export async function unwrapTableAPIFirstItem<T>(
-  clientPromise: AxiosPromise<Sinc.SNAPIResponse<T[]>>
+  clientPromise: AxiosPromise<Sinc.SNAPIResponse<T[]>>,
 ): Promise<T>;
 export async function unwrapTableAPIFirstItem<T>(
   clientPromise: AxiosPromise<Sinc.SNAPIResponse<T[]>>,
-  extractField: keyof T
+  extractField: keyof T,
 ): Promise<string>;
 export async function unwrapTableAPIFirstItem<T extends Record<string, string>>(
   clientPromise: AxiosPromise<Sinc.SNAPIResponse<T[]>>,
-  extractField?: keyof T
+  extractField?: keyof T,
 ): Promise<T | string> {
   try {
     const resp = await unwrapSNResponse(clientPromise);

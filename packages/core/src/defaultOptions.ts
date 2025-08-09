@@ -1,4 +1,4 @@
-import { Sinc } from "@sincronia/types";
+import { Sinc } from "@tenonhq/sincronia-types";
 let excludes: Sinc.TablePropMap = {
   sys_scope_privilege: true,
   sys_dictionary: true,

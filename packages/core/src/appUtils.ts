@@ -1,4 +1,4 @@
-import { SN, Sinc } from "@sincronia/types";
+import { SN, Sinc } from "@tenonhq/sincronia-types";
 import path from "path";
 import ProgressBar from "progress";
 import * as fUtils from "./FileUtils";

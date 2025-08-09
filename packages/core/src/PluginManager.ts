@@ -1,4 +1,4 @@
-import { Sinc } from "@sincronia/types";
+import { Sinc } from "@tenonhq/sincronia-types";
 import * as ConfigManager from "./config";
 import fs from "fs";
 import path from "path";
@@ -33,7 +33,7 @@ class PluginManager {
   async runPlugins(
     plugins: Sinc.PluginConfig[],
     context: Sinc.FileContext,
-    content: string
+    content: string,
   ): Promise<Sinc.TransformResults> {
     try {
       let output = content;
@@ -41,7 +41,7 @@ class PluginManager {
         let pluginPath = path.join(
           ConfigManager.getRootDir(),
           "node_modules",
-          pConfig.name
+          pConfig.name,
         );
         let plugin: Sinc.Plugin = await import(pluginPath);
         let results = await plugin.run(context, output, pConfig.options);
@@ -64,7 +64,7 @@ class PluginManager {
 
   async processFile(
     context: Sinc.FileContext,
-    content: string
+    content: string,
   ): Promise<string> {
     const plugins = this.determinePlugins(context);
     if (plugins.length > 0) {
@@ -74,7 +74,7 @@ class PluginManager {
           return pluginResults.content;
         } else {
           throw new Error(
-            `Failed to build ${context.tableName}=>${context.sys_id}!`
+            `Failed to build ${context.tableName}=>${context.sys_id}!`,
           );
         }
       } catch (e) {

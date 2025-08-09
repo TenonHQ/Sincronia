@@ -9,7 +9,7 @@ import {
   deployCommand,
   statusCommand,
 } from "./commands";
-import { initAllScopesCommand } from "./allScopesCommands";
+import { initScopesCommand } from "./allScopesCommands";
 import yargs from "yargs";
 export async function initCommands() {
   const sharedOptions = {
@@ -82,7 +82,7 @@ export async function initCommands() {
       "initScopes",
       "Provisions an initial project for the scopes defined in the config",
       sharedOptions,
-      initAllScopesCommand,
+      initScopesCommand,
     )
     .command(
       "build",

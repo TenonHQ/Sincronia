@@ -1,9 +1,9 @@
-import { SN, Sinc } from "@sincronia/types";
+import { SN, Sinc } from "@tenonhq/sincronia-types";
 import path from "path";
 import * as ConfigManager from "./config";
 
 async function _getConfigFromPath(
-  params: Sinc.FileSyncParams
+  params: Sinc.FileSyncParams,
 ): Promise<Sinc.FileContext | undefined> {
   try {
     let curManifest = ConfigManager.getManifest();
@@ -18,7 +18,7 @@ async function _getConfigFromPath(
       sys_id = records[name].sys_id;
       if (!fieldExists(records[name], params)) {
         throw new Error(
-          `${params.targetField} not found in the manifest for ${records[name].name}`
+          `${params.targetField} not found in the manifest for ${records[name].name}`,
         );
       }
       return Object.assign({}, params, { scope: scope, sys_id: sys_id });
@@ -82,7 +82,7 @@ export function wait(ms: number) {
 
 export function chunkArr(
   arr: Sinc.FileContext[],
-  chunkSize: number
+  chunkSize: number,
 ): Sinc.FileContext[][] {
   const numChunks = Math.ceil(arr.length / chunkSize);
   const chunks: Sinc.FileContext[][] = [];
@@ -96,7 +96,7 @@ export function chunkArr(
 }
 
 export const allSettled = <T>(
-  promises: Promise<T>[]
+  promises: Promise<T>[],
 ): Promise<Sinc.PromiseResult<T>[]> => {
   return Promise.all(
     promises.map((prom) =>
@@ -105,22 +105,22 @@ export const allSettled = <T>(
           (value): Sinc.PromiseResult<T> => ({
             status: "fulfilled",
             value,
-          })
+          }),
         )
         .catch(
           (reason): Sinc.PromiseResult<T> => ({
             status: "rejected",
             reason,
-          })
-        )
-    )
+          }),
+        ),
+    ),
   );
 };
 
 export const aggregateErrorMessages = (
   errs: any[],
   defaultMsg: string,
-  labelFn: (err: any, index: number) => string
+  labelFn: (err: any, index: number) => string,
 ): string => {
   return errs.reduce((acc, err, index) => {
     return `${acc}\n${labelFn(err, index)}:\n${err.message || defaultMsg}`;

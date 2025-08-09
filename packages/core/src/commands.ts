@@ -1,4 +1,4 @@
-import { Sinc } from "@sincronia/types";
+import { Sinc } from "@tenonhq/sincronia-types";
 import * as ConfigManager from "./config";
 import { startWatching } from "./Watcher";
 import * as AppUtils from "./appUtils";
@@ -17,7 +17,7 @@ import { encodedPathsToFilePaths } from "./FileUtils";
 
 async function scopeCheck(
   successFunc: () => void,
-  swapScopes: boolean = false
+  swapScopes: boolean = false,
 ) {
   try {
     const scopeCheck = await AppUtils.checkScope(swapScopes);
