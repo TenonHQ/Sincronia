@@ -1,5 +1,5 @@
 {
-  "name": "@sincronia/eslint-plugin",
+  "name": "@tenonhq/sincronia-eslint-plugin",
   "version": "0.4.2-alpha.3",
   "description": "ESLint plugin for Sincronia",
   "main": "./dist/index.js",
@@ -25,11 +25,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/nuvolo/sincronia.git"
+    "url": "git+https://github.com/tenon/sincronia.git"
   },
   "bugs": {
-    "url": "https://github.com/nuvolo/sincronia/issues"
+    "url": "https://github.com/tenon/sincronia/issues"
   },
-  "homepage": "https://github.com/nuvolo/sincronia#readme",
+  "homepage": "https://github.com/tenon/sincronia#readme",
   "gitHead": "67b694054cf072be150b9bd4dc3d1b01f8e24ed9"
 }

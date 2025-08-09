@@ -1,5 +1,5 @@
 {
-  "name": "@sincronia/prettier-plugin",
+  "name": "@tenonhq/sincronia-prettier-plugin",
   "version": "0.4.2-alpha.3",
   "description": "Prettier plugin for Sincronia",
   "main": "./dist/index.js",
@@ -21,10 +21,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/nuvolo/sincronia.git"
+    "url": "git+https://github.com/tenon/sincronia.git"
   },
   "bugs": {
-    "url": "https://github.com/nuvolo/sincronia/issues"
+    "url": "https://github.com/tenon/sincronia/issues"
   },
   "gitHead": "67b694054cf072be150b9bd4dc3d1b01f8e24ed9"
 }

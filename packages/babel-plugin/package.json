@@ -1,5 +1,5 @@
 {
-  "name": "@sincronia/babel-plugin",
+  "name": "@tenonhq/sincronia-babel-plugin",
   "version": "0.4.2-alpha.3",
   "description": "Babel Plugin for sincronia",
   "main": "./dist/index.js",
@@ -8,14 +8,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/nuvolo/sincronia.git"
+    "url": "git+https://github.com/tenon/sincronia.git"
   },
   "author": "",
   "license": "GPL-3.0",
   "bugs": {
-    "url": "https://github.com/nuvolo/sincronia/issues"
+    "url": "https://github.com/tenon/sincronia/issues"
   },
-  "homepage": "https://github.com/nuvolo/sincronia#readme",
+  "homepage": "https://github.com/tenon/sincronia#readme",
   "files": [
     "dist"
   ],
