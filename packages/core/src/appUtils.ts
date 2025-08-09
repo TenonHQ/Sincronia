@@ -537,6 +537,9 @@ export const checkScope = async (
     if (man) {
       const client = defaultClient();
       const scopeObj = await unwrapSNResponse(client.getCurrentScope());
+      logger.info(
+        `Current scope: ${scopeObj.scope}, Manifest scope: ${man.scope}`,
+      );
       if (scopeObj.scope === man.scope) {
         return {
           match: true,
@@ -544,6 +547,9 @@ export const checkScope = async (
           manifestScope: man.scope,
         };
       } else if (swap) {
+        logger.info(
+          `Current scope (${scopeObj.scope}) does not match manifest scope (${man.scope}). Swapping...\n`,
+        );
         const swappedScopeObj = await swapScope(man.scope);
         return {
           match: swappedScopeObj.scope === man.scope,
