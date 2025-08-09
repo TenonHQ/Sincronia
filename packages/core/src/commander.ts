@@ -1,4 +1,4 @@
-import { Sinc, TSFIXME } from "@sincronia/types";
+import { Sinc, TSFIXME } from "@tenonhq/sincronia-types";
 import {
   devCommand,
   refreshCommand,
@@ -9,6 +9,7 @@ import {
   deployCommand,
   statusCommand,
 } from "./commands";
+import { initAllScopesCommand } from "./allScopesCommands";
 import yargs from "yargs";
 export async function initCommands() {
   const sharedOptions = {
@@ -75,7 +76,13 @@ export async function initCommands() {
       "init",
       "Provisions an initial project for you",
       sharedOptions,
-      initCommand
+      initCommand,
+    )
+    .command(
+      "initScopes",
+      "Provisions an initial project for the scopes defined in the config",
+      sharedOptions,
+      initAllScopesCommand,
     )
     .command(
       "build",
