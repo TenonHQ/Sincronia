@@ -10,6 +10,14 @@ import {
   statusCommand,
 } from "./commands";
 import { initScopesCommand, watchAllScopesCommand } from "./allScopesCommands";
+import {
+  createUpdateSetCommand,
+  switchUpdateSetCommand,
+  listUpdateSetsCommand,
+  showCurrentUpdateSetCommand,
+  changeScopeCommand,
+  showCurrentScopeCommand,
+} from "./updateSetCommands";
 import yargs from "yargs";
 export async function initCommands() {
   const sharedOptions = {
@@ -120,6 +128,122 @@ export async function initCommands() {
       "Get information about the connected instance",
       sharedOptions,
       statusCommand,
+    )
+    .command(
+      "createUpdateSet",
+      "Create a new update set and switch to it",
+      (cmdArgs) => {
+        cmdArgs.options({
+          ...sharedOptions,
+          name: {
+            alias: "n",
+            type: "string",
+            describe: "Name of the update set to create",
+          },
+          description: {
+            alias: "d",
+            type: "string",
+            describe: "Description of the update set",
+          },
+          scope: {
+            alias: "s",
+            type: "string",
+            describe: "Scope for the update set (e.g., x_company_app)",
+          },
+          skipDescription: {
+            type: "boolean",
+            default: false,
+            describe: "Skip prompting for description",
+          },
+          skipScope: {
+            type: "boolean",
+            default: false,
+            describe: "Skip prompting for scope",
+          },
+        });
+        return cmdArgs;
+      },
+      createUpdateSetCommand,
+    )
+    .command(
+      "switchUpdateSet",
+      "Switch to an existing update set",
+      (cmdArgs) => {
+        cmdArgs.options({
+          ...sharedOptions,
+          name: {
+            alias: "n",
+            type: "string",
+            describe: "Name or partial name of the update set to switch to",
+          },
+          scope: {
+            alias: "s",
+            type: "string",
+            describe: "Filter update sets by scope",
+          },
+        });
+        return cmdArgs;
+      },
+      switchUpdateSetCommand,
+    )
+    .command(
+      "listUpdateSets",
+      "List all in-progress update sets",
+      (cmdArgs) => {
+        cmdArgs.options({
+          ...sharedOptions,
+          scope: {
+            alias: "s",
+            type: "string",
+            describe: "Filter update sets by scope",
+          },
+        });
+        return cmdArgs;
+      },
+      listUpdateSetsCommand,
+    )
+    .command(
+      "currentUpdateSet",
+      "Show the current active update set",
+      (cmdArgs) => {
+        cmdArgs.options({
+          ...sharedOptions,
+          scope: {
+            alias: "s",
+            type: "string",
+            describe: "Scope to check update set for",
+          },
+        });
+        return cmdArgs;
+      },
+      showCurrentUpdateSetCommand,
+    )
+    .command(
+      "changeScope",
+      "Change to a different scope",
+      (cmdArgs) => {
+        cmdArgs.options({
+          ...sharedOptions,
+          scope: {
+            alias: "s",
+            type: "string",
+            describe: "Scope to switch to (e.g., x_cadso_core)",
+          },
+        });
+        return cmdArgs;
+      },
+      changeScopeCommand,
+    )
+    .command(
+      "currentScope",
+      "Show the current active scope",
+      (cmdArgs) => {
+        cmdArgs.options({
+          ...sharedOptions,
+        });
+        return cmdArgs;
+      },
+      showCurrentScopeCommand,
     )
     .help().argv;
 }

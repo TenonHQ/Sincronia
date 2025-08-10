@@ -152,12 +152,20 @@ export const snClient = (
     return client.get<ScopeResponse>(endpoint);
   };
 
-  const createUpdateSet = (updateSetName: string) => {
+  const createUpdateSet = (updateSetName: string, scopeSysId?: string, description?: string) => {
     const endpoint = `api/now/table/sys_update_set`;
     type UpdateSetCreateResponse = Sinc.SNAPIResponse<SN.UpdateSetRecord>;
-    return client.post<UpdateSetCreateResponse>(endpoint, {
+    const data: any = {
       name: updateSetName,
-    });
+      state: "in progress"
+    };
+    if (scopeSysId) {
+      data.application = scopeSysId;
+    }
+    if (description) {
+      data.description = description;
+    }
+    return client.post<UpdateSetCreateResponse>(endpoint, data);
   };
 
   const getCurrentUpdateSetUserPref = (userSysId: string) => {
@@ -221,6 +229,34 @@ export const snClient = (
     });
   };
 
+  const changeUpdateSet = (params: { sysId?: string; name?: string; scope?: string }) => {
+    const endpoint = "api/cadso/claude/changeUpdateSet";
+    type ChangeUpdateSetResponse = { message?: string; error?: string };
+    return client.get<ChangeUpdateSetResponse>(endpoint, {
+      params,
+    });
+  };
+
+  const getCurrentUpdateSet = (scope?: string) => {
+    const endpoint = "api/cadso/claude/currentUpdateSet";
+    type CurrentUpdateSetResponse = { message?: string; sysId?: string; name?: string; error?: string };
+    const params: any = {};
+    if (scope) {
+      params.scope = scope;
+    }
+    return client.get<CurrentUpdateSetResponse>(endpoint, {
+      params,
+    });
+  };
+
+  const changeScope = (scope: string) => {
+    const endpoint = "api/cadso/claude/changeScope";
+    type ChangeScopeResponse = { message?: string; sysId?: string; name?: string; error?: string };
+    return client.get<ChangeScopeResponse>(endpoint, {
+      params: { scope },
+    });
+  };
+
   return {
     getAppList,
     updateRecord,
@@ -236,6 +272,10 @@ export const snClient = (
     createCurrentUpdateSetUserPref,
     getMissingFiles,
     getManifest,
+    changeUpdateSet,
+    getCurrentUpdateSet,
+    changeScope,
+    client, // Expose the axios client for custom queries
   };
 };
 
