@@ -118,6 +118,9 @@ class MultiScopeWatcherManager {
       // First, switch to the correct scope
       await this.switchToScope(scopeWatcher.scope);
 
+      // Load the manifest for this specific scope
+      await this.loadScopeManifest(scopeWatcher.scope, scopeWatcher.sourceDirectory);
+
       // Process the files
       const fileContexts = toProcess
         .map(getFileContextFromPath)
@@ -140,6 +143,48 @@ class MultiScopeWatcherManager {
       logger.success(`[${scopeWatcher.scope}] Successfully pushed ${updateResults.length} file(s)`);
     } catch (error) {
       logger.error(`[${scopeWatcher.scope}] Error processing queue: ${error}`);
+    }
+  }
+
+  private async loadScopeManifest(scopeName: string, sourceDirectory: string) {
+    try {
+      // The sourceDirectory is like /path/to/ServiceNow/src/x_cadso_core
+      // We need to go up two levels to get to the ServiceNow directory where manifests are stored
+      const projectRoot = path.dirname(path.dirname(sourceDirectory)); // Go up from src/scope to project root
+      
+      // Try to load the manifest (could be single-scope or multi-scope)
+      const manifestPath = path.join(projectRoot, "sinc.manifest.json");
+      const fs = await import("fs");
+      
+      if (fs.existsSync(manifestPath)) {
+        const manifestContent = await fs.promises.readFile(manifestPath, "utf-8");
+        const fullManifest = JSON.parse(manifestContent);
+        
+        // Check if this is a multi-scope manifest (has scopes as top-level keys)
+        if (fullManifest[scopeName]) {
+          // Multi-scope manifest - extract the specific scope's data
+          const scopeManifest = fullManifest[scopeName];
+          // Add the scope field for compatibility
+          scopeManifest.scope = scopeName;
+          ConfigManager.updateManifest(scopeManifest);
+          logger.debug(`Loaded manifest for scope: ${scopeName} from multi-scope manifest`);
+        } else if (fullManifest.scope === scopeName) {
+          // Single-scope manifest for the correct scope
+          ConfigManager.updateManifest(fullManifest);
+          logger.debug(`Loaded single-scope manifest for scope: ${scopeName}`);
+        } else if (fullManifest.tables) {
+          // Old-style single-scope manifest without scope field - assume it's for this scope
+          fullManifest.scope = scopeName;
+          ConfigManager.updateManifest(fullManifest);
+          logger.debug(`Loaded manifest for scope: ${scopeName} (legacy format)`);
+        } else {
+          logger.warn(`[${scopeName}] Scope not found in manifest`);
+        }
+      } else {
+        logger.warn(`[${scopeName}] No manifest found at ${manifestPath}`);
+      }
+    } catch (error) {
+      logger.error(`Failed to load manifest for scope ${scopeName}: ${error}`);
     }
   }
 
