@@ -149,11 +149,49 @@ async function processScope(
       logger.info(`Found app: ${scopeApp.displayName} (${scopeName})`);
     }
 
-    // Get manifest with files for this scope
+    // Get manifest for this scope (structure only)
     logger.info(`Downloading manifest for scope: ${scopeName}`);
     const manifest = await unwrapSNResponse(
-      client.getManifest(scopeName, config, true),
+      client.getManifest(scopeName, config, false),  // Get structure first
     );
+    
+    // Now download the actual file contents using getMissingFiles
+    logger.info(`Downloading file contents for scope: ${scopeName}...`);
+    const missingFiles: any = {};
+    
+    // Build the missing files structure from the manifest
+    for (const tableName in manifest?.tables || {}) {
+      const table = manifest.tables[tableName];
+      missingFiles[tableName] = {};
+      
+      for (const recordName in table.records || {}) {
+        const record = table.records[recordName];
+        missingFiles[tableName][record.sys_id] = record.files.map((f: any) => ({
+          name: f.name,
+          type: f.type
+        }));
+      }
+    }
+    
+    // Get the actual file contents
+    const filesWithContent = await unwrapSNResponse(
+      client.getMissingFiles(missingFiles, config.tableOptions || {})
+    );
+    
+    // Merge the content back into the manifest
+    for (const tableName in filesWithContent || {}) {
+      if (manifest.tables[tableName]) {
+        for (const recordName in filesWithContent[tableName].records || {}) {
+          const recordWithContent = filesWithContent[tableName].records[recordName];
+          const manifestRecord = Object.values(manifest.tables[tableName].records).find(
+            (r: any) => r.sys_id === recordWithContent.sys_id
+          );
+          if (manifestRecord) {
+            manifestRecord.files = recordWithContent.files;
+          }
+        }
+      }
+    }
 
     // Process the manifest to create local files in the correct directory
     logger.info(

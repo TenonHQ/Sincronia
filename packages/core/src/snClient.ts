@@ -226,6 +226,7 @@ export const snClient = (
       excludes,
       tableOptions,
       withFiles,
+      getContents: withFiles,  // ServiceNow expects getContents, not withFiles
     });
   };
 
