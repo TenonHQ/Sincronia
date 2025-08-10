@@ -12,11 +12,9 @@ export async function startWizard() {
   let loginAnswers = await getLoginInfo();
   try {
     let { username, password, instance } = loginAnswers;
-    let instanceUrl = instance.startsWith("http")
-      ? instance
-      : `https://${instance}`;
+    let instanceUrl = instance.replace("https://", "").replace("http://", "");
     if (!instanceUrl.endsWith("/")) {
-      instanceUrl += `${instanceUrl}/`;
+      instanceUrl += `/`;
     }
     const client = snClient(instanceUrl, username, password);
     const apps = await unwrapSNResponse(client.getAppList());
@@ -47,7 +45,7 @@ export async function startWizard() {
   }
 }
 
-async function getLoginInfo(): Promise<Sinc.LoginAnswers> {
+export async function getLoginInfo(): Promise<Sinc.LoginAnswers> {
   return await inquirer.prompt([
     {
       type: "input",
@@ -81,7 +79,7 @@ async function checkConfig(): Promise<boolean> {
   }
 }
 
-async function setupDotEnv(answers: Sinc.LoginAnswers) {
+export async function setupDotEnv(answers: Sinc.LoginAnswers) {
   let data = `SN_USER=${answers.username}
 SN_PASSWORD=${answers.password}
 SN_INSTANCE=${answers.instance}

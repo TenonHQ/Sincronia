@@ -9,7 +9,7 @@ import {
   deployCommand,
   statusCommand,
 } from "./commands";
-import { initScopesCommand } from "./allScopesCommands";
+import { initScopesCommand, watchAllScopesCommand } from "./allScopesCommands";
 import yargs from "yargs";
 export async function initCommands() {
   const sharedOptions = {
@@ -83,6 +83,12 @@ export async function initCommands() {
       "Provisions an initial project for the scopes defined in the config",
       sharedOptions,
       initScopesCommand,
+    )
+    .command(
+      "watchAllScopes",
+      "Watch all scopes for file changes and display update set status",
+      sharedOptions,
+      watchAllScopesCommand,
     )
     .command(
       "build",
