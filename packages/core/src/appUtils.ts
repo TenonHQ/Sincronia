@@ -35,10 +35,28 @@ const processFilesInManRec = async (
     }
   });
 
+  // Write metadata files with updated _lastUpdatedOn field
+  const metadataPromises = metadataFiles.map(async (file) => {
+    if (file.content) {
+      try {
+        const metadata = JSON.parse(file.content);
+        // Update _lastUpdatedOn with sys_updated_on value if it exists
+        if (metadata.sys_updated_on && metadata.sys_updated_on.value) {
+          metadata._lastUpdatedOn = metadata.sys_updated_on.value;
+        }
+        // Write the updated metadata
+        file.content = JSON.stringify(metadata, null, 2);
+      } catch (e) {
+        // If parsing fails, just write as-is
+      }
+    }
+    return fileWrite(file, recPath);
+  });
+
   // Write regular files
   const regularPromises = regularFiles.map((file) => fileWrite(file, recPath));
 
-  await Promise.all([...regularPromises]);
+  await Promise.all([...metadataPromises, ...regularPromises]);
 
   // Remove content from ALL files and exclude metadata from manifest
   rec.files = regularFiles.map((file) => {
