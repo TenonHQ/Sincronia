@@ -56,7 +56,7 @@ export const writeSNFileCurry =
         await write();
       }
     } else {
-      write();
+      await write();
     }
   };
 
