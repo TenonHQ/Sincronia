@@ -37,19 +37,6 @@ const processFilesInManRec = async (
 
   // Write metadata files with updated _lastUpdatedOn field
   const metadataPromises = metadataFiles.map(async (file) => {
-    if (file.content) {
-      try {
-        const metadata = JSON.parse(file.content);
-        // Update _lastUpdatedOn with sys_updated_on value if it exists
-        if (metadata.sys_updated_on && metadata.sys_updated_on.value) {
-          metadata._lastUpdatedOn = metadata.sys_updated_on.value;
-        }
-        // Write the updated metadata
-        file.content = JSON.stringify(metadata, null, 2);
-      } catch (e) {
-        // If parsing fails, just write as-is
-      }
-    }
     return fileWrite(file, recPath);
   });
 
