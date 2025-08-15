@@ -22,11 +22,29 @@ const processFilesInManRec = async (
   forceWrite: boolean,
 ) => {
   const fileWrite = fUtils.writeSNFileCurry(forceWrite);
-  const filePromises = rec.files.map((file) => fileWrite(file, recPath));
-  await Promise.all(filePromises);
-  // Side effect, remove content from files so it doesn't get written to manifest
+
+  // Process metadata files separately
+  const metadataFiles: SN.File[] = [];
+  const regularFiles: SN.File[] = [];
+
   rec.files.forEach((file) => {
-    delete file.content;
+    if (file.name === "metaData" && file.type === "json") {
+      metadataFiles.push(file);
+    } else {
+      regularFiles.push(file);
+    }
+  });
+
+  // Write regular files
+  const regularPromises = regularFiles.map((file) => fileWrite(file, recPath));
+
+  await Promise.all([...regularPromises]);
+
+  // Remove content from ALL files and exclude metadata from manifest
+  rec.files = regularFiles.map((file) => {
+    const fileCopy = { ...file };
+    delete fileCopy.content;
+    return fileCopy;
   });
 };
 
@@ -75,29 +93,56 @@ export const processManifest = async (
   forceWrite = false,
 ): Promise<void> => {
   await processTablesInManifest(manifest.tables, forceWrite);
-  await fUtils.writeFileForce(
-    ConfigManager.getManifestPath(),
-    JSON.stringify(manifest, null, 2),
-  );
+
+  // Write to scope-specific manifest if scope is available
+  if (manifest.scope) {
+    await fUtils.writeScopeManifest(manifest.scope, manifest);
+  } else {
+    // Fall back to legacy single manifest
+    await fUtils.writeFileForce(
+      ConfigManager.getManifestPath(),
+      JSON.stringify(manifest, null, 2),
+    );
+  }
 };
 
-export const syncManifest = async () => {
+export const syncManifest = async (scope?: string) => {
   try {
     const curManifest = await ConfigManager.getManifest();
     if (!curManifest) throw new Error("No manifest file loaded!");
-    logger.info("Downloading fresh manifest...");
-    const client = defaultClient();
-    const config = ConfigManager.getConfig();
-    const newManifest = await unwrapSNResponse(
-      client.getManifest(curManifest.scope, config),
-    );
 
-    logger.info("Writing new manifest file...");
-    fUtils.writeManifestFile(newManifest);
+    // If a specific scope is provided, sync only that scope
+    if (scope) {
+      logger.info(`Downloading fresh manifest for scope: ${scope}...`);
+      const client = defaultClient();
+      const config = ConfigManager.getConfig();
+      const newManifest = await unwrapSNResponse(
+        client.getManifest(scope, config),
+      );
 
-    logger.info("Finding and creating missing files...");
-    await processMissingFiles(newManifest);
-    ConfigManager.updateManifest(newManifest);
+      logger.info(`Writing manifest file for scope: ${scope}...`);
+      await fUtils.writeScopeManifest(scope, newManifest);
+
+      logger.info("Finding and creating missing files...");
+      await processMissingFiles(newManifest);
+
+      // Update the in-memory manifest for this scope
+      if (typeof curManifest === "object" && !curManifest.tables) {
+        (curManifest as any)[scope] = newManifest;
+        ConfigManager.updateManifest(curManifest as any);
+      }
+    } else {
+      // Sync all scopes if manifest has multiple scopes
+      if (typeof curManifest === "object" && !curManifest.tables) {
+        // Multiple scopes detected
+        for (const scopeName of Object.keys(curManifest)) {
+          await syncManifest(scopeName);
+        }
+      } else if (curManifest.scope) {
+        // Single scope manifest
+        await syncManifest(curManifest.scope);
+      }
+    }
   } catch (e) {
     let message;
     if (e instanceof Error) message = e.message;

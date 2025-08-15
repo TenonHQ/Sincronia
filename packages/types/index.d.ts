@@ -207,7 +207,7 @@ export namespace SN {
     result: Record[];
   }
 
-  type FileType = "js" | "css" | "xml" | "html" | "scss" | "txt";
+  type FileType = "js" | "css" | "xml" | "html" | "scss" | "txt" | "json";
 
   interface TypeMap {
     [type: string]: string;

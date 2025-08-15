@@ -304,12 +304,12 @@ export async function initScopesCommand(args: Sinc.SharedCmdArgs) {
       }
     });
 
-    // Write the combined manifest file with the new structure
-    const manifestPath = path.join(
-      ConfigManager.getRootDir(),
-      "sinc.manifest.json",
-    );
-    await fsp.writeFile(manifestPath, JSON.stringify(manifests, null, 2));
+    // Write per-scope manifest files instead of a single combined one
+    for (const [scopeName, scopeData] of Object.entries(manifests)) {
+      const scopeManifestPath = ConfigManager.getScopeManifestPath(scopeName);
+      await fsp.writeFile(scopeManifestPath, JSON.stringify(scopeData, null, 2));
+      logger.info(`Wrote manifest for ${scopeName} to: ${scopeManifestPath}`);
+    }
 
     logger.info("=".repeat(50));
     logger.success(`✅ Scope initialization complete!`);
@@ -317,7 +317,7 @@ export async function initScopesCommand(args: Sinc.SharedCmdArgs) {
     if (failCount > 0) {
       logger.warn(`Failed to process: ${failCount} scopes`);
     }
-    logger.info(`Manifest written to: ${manifestPath}`);
+    logger.info(`Manifests written as per-scope files (sinc.manifest.<scope>.json)`);
     logger.info(
       "\nAll scope files have been downloaded to their respective source directories.",
     );

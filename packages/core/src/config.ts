@@ -77,9 +77,18 @@ export function getManifest(setup = false) {
   if (!setup) throw new Error("Error getting manifest");
 }
 
-export function getManifestPath() {
+export function getManifestPath(scope?: string) {
+  if (scope) {
+    const rootDir = getRootDir();
+    return path.join(rootDir, `sinc.manifest.${scope}.json`);
+  }
   if (manifest_path) return manifest_path;
   throw new Error("Error getting manifest path");
+}
+
+export function getScopeManifestPath(scope: string) {
+  const rootDir = getRootDir();
+  return path.join(rootDir, `sinc.manifest.${scope}.json`);
 }
 
 export function getSourcePath() {
@@ -163,10 +172,60 @@ async function loadConfig(skipConfigPath = false): Promise<Sinc.ScopedConfig> {
 
 async function loadManifest() {
   try {
+    // Try to load legacy single manifest first
     let manifestString = await fsp.readFile(getManifestPath(), "utf-8");
     manifest = JSON.parse(manifestString);
   } catch (e) {
-    manifest = undefined;
+    // If no single manifest, try to load all scope-specific manifests
+    manifest = await loadAllScopeManifests();
+  }
+}
+
+async function loadAllScopeManifests(): Promise<SN.AppManifest | undefined> {
+  try {
+    const rootDir = getRootDir();
+    const files = await fsp.readdir(rootDir);
+    const manifestFiles = files.filter(f => f.startsWith('sinc.manifest.') && f.endsWith('.json') && f !== 'sinc.manifest.json');
+    
+    if (manifestFiles.length === 0) {
+      return undefined;
+    }
+    
+    // Combine all scope manifests into a single structure for backward compatibility
+    const combinedManifest: any = {};
+    
+    for (const file of manifestFiles) {
+      const scope = file.replace('sinc.manifest.', '').replace('.json', '');
+      const manifestPath = path.join(rootDir, file);
+      try {
+        const content = await fsp.readFile(manifestPath, "utf-8");
+        const scopeManifest = JSON.parse(content);
+        
+        // If the manifest already has the scope at root level, use it directly
+        if (scopeManifest.scope && scopeManifest.tables) {
+          combinedManifest[scope] = scopeManifest;
+        } else {
+          // Otherwise wrap it
+          combinedManifest[scope] = scopeManifest;
+        }
+      } catch (e) {
+        logger.warn(`Failed to load manifest for scope ${scope}: ${e}`);
+      }
+    }
+    
+    return Object.keys(combinedManifest).length > 0 ? combinedManifest : undefined;
+  } catch (e) {
+    return undefined;
+  }
+}
+
+export async function loadScopeManifest(scope: string): Promise<SN.AppManifest | undefined> {
+  try {
+    const manifestPath = getScopeManifestPath(scope);
+    const content = await fsp.readFile(manifestPath, "utf-8");
+    return JSON.parse(content);
+  } catch (e) {
+    return undefined;
   }
 }
 

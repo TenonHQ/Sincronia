@@ -16,9 +16,24 @@ export const SNFileExists =
     }
   };
 
-export const writeManifestFile = async (man: SN.AppManifest) => {
+export const writeManifestFile = async (man: SN.AppManifest, scope?: string) => {
+  if (scope) {
+    // Write scope-specific manifest
+    return fsp.writeFile(
+      ConfigManager.getScopeManifestPath(scope),
+      JSON.stringify(man, null, 2),
+    );
+  }
+  // Write legacy single manifest
   return fsp.writeFile(
     ConfigManager.getManifestPath(),
+    JSON.stringify(man, null, 2),
+  );
+};
+
+export const writeScopeManifest = async (scope: string, man: SN.AppManifest) => {
+  return fsp.writeFile(
+    ConfigManager.getScopeManifestPath(scope),
     JSON.stringify(man, null, 2),
   );
 };

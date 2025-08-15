@@ -152,10 +152,24 @@ class MultiScopeWatcherManager {
       // We need to go up two levels to get to the ServiceNow directory where manifests are stored
       const projectRoot = path.dirname(path.dirname(sourceDirectory)); // Go up from src/scope to project root
       
-      // Try to load the manifest (could be single-scope or multi-scope)
-      const manifestPath = path.join(projectRoot, "sinc.manifest.json");
       const fs = await import("fs");
       
+      // First try to load scope-specific manifest file
+      const scopeManifestPath = path.join(projectRoot, `sinc.manifest.${scopeName}.json`);
+      if (fs.existsSync(scopeManifestPath)) {
+        const manifestContent = await fs.promises.readFile(scopeManifestPath, "utf-8");
+        const scopeManifest = JSON.parse(manifestContent);
+        // Ensure scope field is set
+        if (!scopeManifest.scope) {
+          scopeManifest.scope = scopeName;
+        }
+        ConfigManager.updateManifest(scopeManifest);
+        logger.debug(`Loaded scope-specific manifest for: ${scopeName}`);
+        return;
+      }
+      
+      // Fall back to checking legacy single manifest file
+      const manifestPath = path.join(projectRoot, "sinc.manifest.json");
       if (fs.existsSync(manifestPath)) {
         const manifestContent = await fs.promises.readFile(manifestPath, "utf-8");
         const fullManifest = JSON.parse(manifestContent);
@@ -167,7 +181,7 @@ class MultiScopeWatcherManager {
           // Add the scope field for compatibility
           scopeManifest.scope = scopeName;
           ConfigManager.updateManifest(scopeManifest);
-          logger.debug(`Loaded manifest for scope: ${scopeName} from multi-scope manifest`);
+          logger.debug(`Loaded manifest for scope: ${scopeName} from legacy multi-scope manifest`);
         } else if (fullManifest.scope === scopeName) {
           // Single-scope manifest for the correct scope
           ConfigManager.updateManifest(fullManifest);
@@ -181,7 +195,7 @@ class MultiScopeWatcherManager {
           logger.warn(`[${scopeName}] Scope not found in manifest`);
         }
       } else {
-        logger.warn(`[${scopeName}] No manifest found at ${manifestPath}`);
+        logger.warn(`[${scopeName}] No manifest found at ${scopeManifestPath} or ${manifestPath}`);
       }
     } catch (error) {
       logger.error(`Failed to load manifest for scope ${scopeName}: ${error}`);
