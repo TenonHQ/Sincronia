@@ -3,6 +3,7 @@ import axios, { AxiosPromise, AxiosResponse } from "axios";
 import rateLimit from "axios-rate-limit";
 import { wait } from "./genericUtils";
 import { logger } from "./Logger";
+import { fileLogger } from "./FileLogger";
 
 export const retryOnErr = async <T>(
   f: () => Promise<T>,
@@ -204,6 +205,14 @@ export const snClient = (
     tableOptions: Sinc.ITableOptionsMap,
   ) => {
     const endpoint = `api/x_nuvo_sinc/sinc/bulkDownload`;
+    
+    fileLogger.debug('\n=== getMissingFiles DEBUG ===');
+    fileLogger.debug('Fetching missing files from ServiceNow');
+    fileLogger.debug('Endpoint:', endpoint);
+    fileLogger.debug('Missing files request:', JSON.stringify(missingFiles, null, 2));
+    fileLogger.debug('Table options:', JSON.stringify(tableOptions, null, 2));
+    fileLogger.debug('=== getMissingFiles DEBUG END ===\n');
+    
     type TableMap = Sinc.SNAPIResponse<SN.TableMap>;
     return client.post<TableMap>(endpoint, { missingFiles, tableOptions });
   };
@@ -220,6 +229,22 @@ export const snClient = (
       tableOptions = {},
       scopes = {},
     } = config;
+    
+    fileLogger.debug('\n=== getManifest DEBUG ===');
+    fileLogger.debug('Fetching manifest from ServiceNow');
+    fileLogger.debug('Endpoint:', endpoint);
+    fileLogger.debug('Scope:', scope);
+    fileLogger.debug('With files (should download file contents):', withFiles);
+    fileLogger.debug('Request body:', JSON.stringify({
+      includes,
+      excludes,
+      tableOptions,
+      withFiles,
+      getContents: withFiles
+    }, null, 2));
+    fileLogger.debug('IMPORTANT: withFiles=' + withFiles + ' means', withFiles ? 'DOWNLOAD file contents' : 'NO file contents (manifest only)');
+    fileLogger.debug('=== getManifest DEBUG END ===\n');
+    
     type AppResponse = Sinc.SNAPIResponse<SN.AppManifest>;
     return client.post<AppResponse>(endpoint, {
       includes,
@@ -297,6 +322,74 @@ export const unwrapSNResponse = async <T>(
 ): Promise<T> => {
   try {
     const resp = await clientPromise;
+    
+    // Debug logging for manifest responses
+    if (resp.config && resp.config.url && resp.config.url.includes('getManifest')) {
+      fileLogger.debug('\n=== unwrapSNResponse DEBUG (Manifest) ===');
+      fileLogger.debug('Response status:', resp.status);
+      fileLogger.debug('Response URL:', resp.config.url);
+      
+      // Check structure of manifest response
+      const result: any = resp.data.result;
+      if (result && result.tables) {
+        const tables = result.tables;
+        fileLogger.debug('Tables in manifest:', Object.keys(tables));
+        
+        // Sample first table and record to see file structure
+        const firstTable = Object.keys(tables)[0];
+        if (firstTable) {
+          const table = tables[firstTable];
+          const firstRecord = Object.keys(table.records)[0];
+          if (firstRecord) {
+            const record = table.records[firstRecord];
+            fileLogger.debug(`Sample record from ${firstTable}:`, {
+              name: record.name,
+              sys_id: record.sys_id,
+              files: record.files.map((f: any) => ({
+                name: f.name,
+                type: f.type,
+                hasContent: !!f.content
+              }))
+            });
+          }
+        }
+      }
+      fileLogger.debug('=== unwrapSNResponse DEBUG END ===\n');
+    }
+    
+    // Debug logging for bulkDownload responses
+    if (resp.config && resp.config.url && resp.config.url.includes('bulkDownload')) {
+      fileLogger.debug('\n=== unwrapSNResponse DEBUG (BulkDownload) ===');
+      fileLogger.debug('Response status:', resp.status);
+      fileLogger.debug('Response URL:', resp.config.url);
+      
+      const result: any = resp.data.result;
+      if (result) {
+        const tables = result;
+        fileLogger.debug('Tables in bulk download:', Object.keys(tables || {}));
+        
+        // Log details of files received
+        if (tables) {
+          Object.keys(tables).forEach((tableName: string) => {
+            const table = tables[tableName];
+            fileLogger.debug(`Table: ${tableName}`);
+            if (table && table.records) {
+              Object.keys(table.records).forEach((recordName: string) => {
+                const record = table.records[recordName];
+                fileLogger.debug(`  Record: ${recordName}`);
+                if (record && record.files) {
+                  record.files.forEach((file: any) => {
+                    fileLogger.debug(`    File: ${file.name}.${file.type} (content: ${file.content ? file.content.length + ' chars' : 'null'})`);
+                  });
+                }
+              });
+            }
+          });
+        }
+      }
+      fileLogger.debug('=== unwrapSNResponse DEBUG END ===\n');
+    }
+    
     return resp.data.result;
   } catch (e) {
     let message;

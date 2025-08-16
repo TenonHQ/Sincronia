@@ -5,6 +5,7 @@ import * as fUtils from "./FileUtils";
 import * as ConfigManager from "./config";
 import { PUSH_RETRY_LIMIT, PUSH_RETRY_WAIT } from "./constants";
 import PluginManager from "./PluginManager";
+import { fileLogger } from "./FileLogger";
 import {
   defaultClient,
   processPushResponse,
@@ -21,36 +22,67 @@ const processFilesInManRec = async (
   rec: SN.MetaRecord,
   forceWrite: boolean,
 ) => {
+  fileLogger.debug('\n=== processFilesInManRec DEBUG START ===');
+  fileLogger.debug('Processing record:', rec.name);
+  fileLogger.debug('Record path:', recPath);
+  fileLogger.debug('Force write:', forceWrite);
+  fileLogger.debug('Number of files in record:', rec.files.length);
+  fileLogger.debug('Files received:', rec.files.map(f => ({ 
+    name: f.name, 
+    type: f.type, 
+    hasContent: !!f.content,
+    contentLength: f.content ? f.content.length : 0 
+  })));
+  
+  // Check if any file is named metaData or similar
+  const metadataFileIncoming = rec.files.find(f => 
+    f.name.toLowerCase().includes('metadata') || 
+    f.name.toLowerCase().includes('meta')
+  );
+  fileLogger.debug('Metadata file found in incoming files?', metadataFileIncoming ? 'YES' : 'NO');
+  if (metadataFileIncoming) {
+    fileLogger.debug('Found metadata file:', metadataFileIncoming);
+  }
+  
   const fileWrite = fUtils.writeSNFileCurry(forceWrite);
 
-  // Process metadata files separately
-  const metadataFiles: SN.File[] = [];
-  const regularFiles: SN.File[] = [];
-
-  rec.files.forEach((file) => {
-    if (file.name === "metaData" && file.type === "json") {
-      metadataFiles.push(file);
-    } else {
-      regularFiles.push(file);
-    }
+  // Create metadata file with current timestamp
+  const metadataFile: SN.File = {
+    name: "metaData",
+    type: "json",
+    content: JSON.stringify({
+      _lastUpdatedOn: new Date().toISOString()
+    }, null, 2)
+  };
+  
+  fileLogger.debug('Creating metadata file:', {
+    name: metadataFile.name,
+    type: metadataFile.type,
+    content: metadataFile.content
   });
 
-  // Write metadata files with updated _lastUpdatedOn field
-  const metadataPromises = metadataFiles.map(async (file) => {
-    return fileWrite(file, recPath);
-  });
+  // Write metadata file first
+  fileLogger.debug('Writing metadata file to:', recPath);
+  await fileWrite(metadataFile, recPath);
+  fileLogger.debug('Metadata file write complete');
 
   // Write regular files
-  const regularPromises = regularFiles.map((file) => fileWrite(file, recPath));
+  fileLogger.debug('Writing', rec.files.length, 'regular files...');
+  const regularPromises = rec.files.map((file) => {
+    fileLogger.debug(`  Writing file: ${file.name}.${file.type}`);
+    return fileWrite(file, recPath);
+  });
+  await Promise.all(regularPromises);
+  fileLogger.debug('All regular files written');
 
-  await Promise.all([...metadataPromises, ...regularPromises]);
-
-  // Remove content from ALL files and exclude metadata from manifest
-  rec.files = regularFiles.map((file) => {
+  // Remove content from ALL files (metadata is not included in manifest)
+  rec.files = rec.files.map((file) => {
     const fileCopy = { ...file };
     delete fileCopy.content;
     return fileCopy;
   });
+  
+  fileLogger.debug('=== processFilesInManRec DEBUG END ===\n');
 };
 
 const processRecsInManTable = async (
@@ -97,38 +129,57 @@ export const processManifest = async (
   manifest: SN.AppManifest,
   forceWrite = false,
 ): Promise<void> => {
+  fileLogger.debug('\n=== processManifest DEBUG START ===');
+  fileLogger.debug('Manifest scope:', manifest.scope);
+  fileLogger.debug('Force write:', forceWrite);
+  fileLogger.debug('Number of tables:', Object.keys(manifest.tables).length);
+  fileLogger.debug('Table names:', Object.keys(manifest.tables));
+  
   await processTablesInManifest(manifest.tables, forceWrite);
 
   // Write to scope-specific manifest if scope is available
   if (manifest.scope) {
+    fileLogger.debug('Writing scope-specific manifest for scope:', manifest.scope);
     await fUtils.writeScopeManifest(manifest.scope, manifest);
   } else {
     // Fall back to legacy single manifest
+    fileLogger.debug('Writing legacy single manifest');
     await fUtils.writeFileForce(
       ConfigManager.getManifestPath(),
       JSON.stringify(manifest, null, 2),
     );
   }
+  fileLogger.debug('=== processManifest DEBUG END ===\n');
 };
 
 export const syncManifest = async (scope?: string) => {
   try {
+    fileLogger.debug('\n=== syncManifest DEBUG START ===');
+    fileLogger.debug('Called with scope:', scope || 'undefined (will sync all scopes)');
+    
     const curManifest = await ConfigManager.getManifest();
     if (!curManifest) throw new Error("No manifest file loaded!");
 
     // If a specific scope is provided, sync only that scope
     if (scope) {
       logger.info(`Downloading fresh manifest for scope: ${scope}...`);
+      fileLogger.debug('Getting client and config...');
       const client = defaultClient();
       const config = ConfigManager.getConfig();
+      
+      fileLogger.debug('Fetching manifest from ServiceNow for scope:', scope);
       const newManifest = await unwrapSNResponse(
         client.getManifest(scope, config),
       );
+      
+      fileLogger.debug('New manifest received. Tables:', Object.keys(newManifest.tables));
+      fileLogger.debug('Manifest scope:', newManifest.scope);
 
       logger.info(`Writing manifest file for scope: ${scope}...`);
       await fUtils.writeScopeManifest(scope, newManifest);
 
       logger.info("Finding and creating missing files...");
+      fileLogger.debug('Processing missing files for the new manifest...');
       await processMissingFiles(newManifest);
 
       // Update the in-memory manifest for this scope
@@ -281,13 +332,31 @@ export const processMissingFiles = async (
   newManifest: SN.AppManifest,
 ): Promise<void> => {
   try {
+    fileLogger.debug('\n=== processMissingFiles DEBUG START ===');
     const missing = await findMissingFiles(newManifest);
+    fileLogger.debug('Missing files found:', JSON.stringify(missing, null, 2));
+    
     const { tableOptions = {} } = ConfigManager.getConfig();
     const client = defaultClient();
+    
+    fileLogger.debug('Fetching missing files from ServiceNow...');
     const filesToProcess = await unwrapSNResponse(
       client.getMissingFiles(missing, tableOptions),
     );
+    
+    fileLogger.debug('Files to process from ServiceNow:');
+    Object.keys(filesToProcess).forEach(tableName => {
+      const table = filesToProcess[tableName];
+      fileLogger.debug(`  Table: ${tableName}`);
+      Object.keys(table.records).forEach(recordName => {
+        const record = table.records[recordName];
+        fileLogger.debug(`    Record: ${recordName}`);
+        fileLogger.debug(`      Files: ${record.files.map(f => `${f.name}.${f.type}`).join(', ')}`);
+      });
+    });
+    
     await processTablesInManifest(filesToProcess, false);
+    fileLogger.debug('=== processMissingFiles DEBUG END ===\n');
   } catch (e) {
     throw e;
   }

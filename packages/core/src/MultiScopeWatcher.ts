@@ -243,10 +243,10 @@ class MultiScopeWatcherManager {
     // Check update sets immediately on start
     await this.checkAllUpdateSets();
 
-    // Then check every 30 seconds
+    // Then check every 2 minutes
     this.updateSetCheckInterval = setInterval(async () => {
       await this.checkAllUpdateSets();
-    }, 30000);
+    }, 120000); // 2 minutes = 120000ms
   }
 
   private async checkAllUpdateSets() {

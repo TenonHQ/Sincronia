@@ -4,6 +4,7 @@ import { startWatching } from "./Watcher";
 import * as AppUtils from "./appUtils";
 import { startWizard } from "./wizard";
 import { logger } from "./Logger";
+import { fileLogger } from "./FileLogger";
 import {
   scopeCheckMessage,
   devModeLog,
@@ -62,12 +63,18 @@ export async function refreshCommand(
   log: boolean = true,
 ) {
   setLogLevel(args);
+  fileLogger.debug('\n=== refreshCommand DEBUG START ===');
+  fileLogger.debug('Log parameter:', log);
+  fileLogger.debug('Args:', args);
+  
   scopeCheck(async () => {
     try {
       if (!log) setLogLevel({ logLevel: "warn" });
+      fileLogger.debug('Calling syncManifest (no scope parameter - will sync all)');
       await AppUtils.syncManifest();
       logger.success("Refresh complete! ✅");
       setLogLevel(args);
+      fileLogger.debug('=== refreshCommand DEBUG END ===\n');
     } catch (e) {
       throw e;
     }
@@ -135,6 +142,9 @@ export async function pushCommand(args: Sinc.PushCmdArgs): Promise<void> {
 export async function downloadCommand(args: Sinc.CmdDownloadArgs) {
   setLogLevel(args);
   try {
+    fileLogger.debug('\n=== downloadCommand DEBUG START ===');
+    fileLogger.debug('Command arguments:', args);
+    
     let answers: { confirmed: boolean } = await inquirer.prompt([
       {
         type: "confirm",
@@ -147,14 +157,43 @@ export async function downloadCommand(args: Sinc.CmdDownloadArgs) {
       return;
     }
     logger.info("Downloading manifest and files...");
+    fileLogger.debug('Scope to download:', args.scope);
+    fileLogger.debug('Getting manifest WITH FILES (third param = true)');
+    
     const client = defaultClient();
     const config = ConfigManager.getConfig();
+    
+    fileLogger.debug('Calling getManifest with withFiles=true');
     const man = await unwrapSNResponse(
       client.getManifest(args.scope, config, true),
     );
+    
+    fileLogger.debug('Manifest received from ServiceNow');
+    fileLogger.debug('Manifest has', Object.keys(man.tables).length, 'tables');
+    
+    // Check for metadata files in the manifest
+    let metadataFileCount = 0;
+    Object.keys(man.tables).forEach(tableName => {
+      const table = man.tables[tableName];
+      Object.keys(table.records).forEach(recordName => {
+        const record = table.records[recordName];
+        const metaFile = record.files.find((f: any) => 
+          f.name.toLowerCase().includes('metadata') || 
+          f.name.toLowerCase().includes('meta')
+        );
+        if (metaFile) {
+          metadataFileCount++;
+          fileLogger.debug(`Found metadata file in ${tableName}/${recordName}:`, metaFile);
+        }
+      });
+    });
+    fileLogger.debug('Total metadata files found in manifest:', metadataFileCount);
+    
     logger.info("Creating local files from manifest...");
+    fileLogger.debug('Calling processManifest with forceWrite=true');
     await AppUtils.processManifest(man, true);
     logger.success("Download complete ✅");
+    fileLogger.debug('=== downloadCommand DEBUG END ===\n');
   } catch (e) {
     throw e;
   }

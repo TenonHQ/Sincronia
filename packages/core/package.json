@@ -1,6 +1,6 @@
 {
   "name": "@tenonhq/sincronia-core",
-  "version": "0.0.47",
+  "version": "0.0.56",
   "description": "Next-gen file syncer",
   "license": "GPL-3.0",
   "main": "./dist/index.js",

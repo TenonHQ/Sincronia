@@ -89,7 +89,15 @@ export async function initCommands() {
     .command(
       "initScopes",
       "Provisions an initial project for the scopes defined in the config",
-      sharedOptions,
+      {
+        ...sharedOptions,
+        delay: {
+          alias: "d",
+          type: "number",
+          default: 0,
+          describe: "Delay in milliseconds between API calls (to prevent server overload)",
+        },
+      },
       initScopesCommand,
     )
     .command(

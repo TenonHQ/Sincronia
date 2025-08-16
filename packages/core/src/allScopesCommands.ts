@@ -1,5 +1,6 @@
 import { Sinc, SN } from "@tenonhq/sincronia-types";
 import { logger } from "./Logger";
+import { fileLogger } from "./FileLogger";
 import * as ConfigManager from "./config";
 import * as AppUtils from "./appUtils";
 import * as fUtils from "./FileUtils";
@@ -68,11 +69,20 @@ async function processManifestForScope(
         const recordDirName = record.name || recordName;
         const recordPath = path.join(tablePath, recordDirName);
 
-        logger.debug(
+        fileLogger.debug(
           `Processing record: ${recordDirName} with ${
             record.files?.length || 0
           } files`,
         );
+
+        // Check if metadata file exists in the files from server
+        const hasMetadataFromServer = record.files?.some(
+          (f: any) => f.name === 'metaData' && f.type === 'json'
+        );
+        
+        if (hasMetadataFromServer) {
+          fileLogger.debug(`*** METADATA FILE EXISTS FROM SERVER for ${recordDirName} ***`);
+        }
 
         // Ensure the record directory exists
         await fsp.mkdir(recordPath, { recursive: true });
@@ -81,6 +91,11 @@ async function processManifestForScope(
         for (const file of record.files || []) {
           const filePath = path.join(recordPath, `${file.name}.${file.type}`);
           const fileContent = file.content || "";
+          
+          if (file.name === 'metaData' && file.type === 'json') {
+            fileLogger.debug(`*** WRITING METADATA FILE FROM SERVER: ${filePath}`);
+            fileLogger.debug(`Metadata content length: ${fileContent.length} chars`);
+          }
 
           // Ensure the parent directory exists before writing the file
           const fileDir = path.dirname(filePath);
@@ -91,9 +106,29 @@ async function processManifestForScope(
           logger.debug(`Writing file: ${filePath}`);
           try {
             await fsp.writeFile(filePath, fileContent, "utf8");
+            if (file.name === 'metaData' && file.type === 'json') {
+              fileLogger.debug(`*** SUCCESSFULLY WROTE METADATA FILE: ${filePath}`);
+            }
           } catch (writeError) {
             logger.error(`Failed to write file ${filePath}: ${writeError}`);
             throw writeError;
+          }
+        }
+        
+        // If no metadata from server, create a basic one
+        if (!hasMetadataFromServer) {
+          const metadataFilePath = path.join(recordPath, "metaData.json");
+          const metadataContent = {
+            _generatedAt: new Date().toISOString(),
+            _note: "Generated locally - metadata not provided by server"
+          };
+          
+          fileLogger.debug(`*** CREATING LOCAL METADATA FILE (not from server): ${metadataFilePath}`);
+          try {
+            await fsp.writeFile(metadataFilePath, JSON.stringify(metadataContent, null, 2), "utf8");
+            fileLogger.debug(`*** SUCCESSFULLY CREATED LOCAL METADATA FILE for ${recordDirName}`);
+          } catch (metaError) {
+            logger.error(`Failed to write metadata file ${metadataFilePath}: ${metaError}`);
           }
         }
       }
@@ -109,6 +144,7 @@ async function processManifestForScope(
 async function processScope(
   scopeName: string,
   scopeConfig: ScopeConfig | boolean,
+  apiDelay: number = 0,
 ): Promise<ScopeResult> {
   try {
     logger.info(`Processing scope: ${scopeName}`);
@@ -151,41 +187,60 @@ async function processScope(
 
     // Get manifest for this scope (structure only)
     logger.info(`Downloading manifest for scope: ${scopeName}`);
+    if (apiDelay > 0) {
+      await delay(apiDelay);
+    }
     const manifest = await unwrapSNResponse(
-      client.getManifest(scopeName, config, false),  // Get structure first
+      client.getManifest(scopeName, config, false), // Get structure first
     );
-    
+
     // Now download the actual file contents using getMissingFiles
     logger.info(`Downloading file contents for scope: ${scopeName}...`);
     const missingFiles: any = {};
-    
+
     // Build the missing files structure from the manifest
     for (const tableName in manifest?.tables || {}) {
       const table = manifest.tables[tableName];
       missingFiles[tableName] = {};
-      
+
       for (const recordName in table.records || {}) {
         const record = table.records[recordName];
         missingFiles[tableName][record.sys_id] = record.files.map((f: any) => ({
           name: f.name,
-          type: f.type
+          type: f.type,
         }));
       }
     }
-    
+
     // Get the actual file contents
+    fileLogger.debug("Getting missing files with content from ServiceNow...");
+    if (apiDelay > 0) {
+      await delay(apiDelay);
+    }
     const filesWithContent = await unwrapSNResponse(
-      client.getMissingFiles(missingFiles, config.tableOptions || {})
+      client.getMissingFiles(missingFiles, config.tableOptions || {}),
     );
-    
+
     // Merge the content back into the manifest
     for (const tableName in filesWithContent || {}) {
       if (manifest.tables[tableName]) {
         for (const recordName in filesWithContent[tableName].records || {}) {
-          const recordWithContent = filesWithContent[tableName].records[recordName];
-          const manifestRecord = Object.values(manifest.tables[tableName].records).find(
-            (r: any) => r.sys_id === recordWithContent.sys_id
-          );
+          const recordWithContent =
+            filesWithContent[tableName].records[recordName];
+          
+          // Log what files are coming from the server
+          fileLogger.debug(`Files from server for ${tableName}/${recordName}:`);
+          for (const file of recordWithContent.files || []) {
+            fileLogger.debug(`  - ${file.name}.${file.type} (content: ${file.content ? file.content.length + ' chars' : 'null'})`);
+            if (file.name === 'metaData' && file.type === 'json') {
+              fileLogger.debug('*** METADATA FILE FOUND FROM SERVER ***');
+              fileLogger.debug(`Metadata content preview: ${file.content ? file.content.substring(0, 200) : 'no content'}`);
+            }
+          }
+          
+          const manifestRecord = Object.values(
+            manifest.tables[tableName].records,
+          ).find((r: any) => r.sys_id === recordWithContent.sys_id);
           if (manifestRecord) {
             manifestRecord.files = recordWithContent.files;
           }
@@ -227,8 +282,21 @@ async function processScope(
   }
 }
 
-export async function initScopesCommand(args: Sinc.SharedCmdArgs) {
+// Helper function to add delay between API calls
+async function delay(ms: number): Promise<void> {
+  if (ms > 0) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+}
+
+export async function initScopesCommand(args: Sinc.SharedCmdArgs & { delay?: number }) {
   setLogLevel(args);
+  
+  // Get API delay from args, default to 0ms (no delay)
+  const apiDelay = args.delay || 0;
+  if (apiDelay > 0) {
+    logger.info(`Using ${apiDelay}ms delay between API calls to prevent server overload`);
+  }
 
   try {
     // First check if we have environment variables set
@@ -277,7 +345,7 @@ export async function initScopesCommand(args: Sinc.SharedCmdArgs) {
     );
 
     const scopePromises = scopes.map((scopeName) =>
-      processScope(scopeName, config.scopes![scopeName]),
+      processScope(scopeName, config.scopes![scopeName], apiDelay),
     );
 
     const results = await Promise.allSettled(scopePromises);
@@ -307,7 +375,10 @@ export async function initScopesCommand(args: Sinc.SharedCmdArgs) {
     // Write per-scope manifest files instead of a single combined one
     for (const [scopeName, scopeData] of Object.entries(manifests)) {
       const scopeManifestPath = ConfigManager.getScopeManifestPath(scopeName);
-      await fsp.writeFile(scopeManifestPath, JSON.stringify(scopeData, null, 2));
+      await fsp.writeFile(
+        scopeManifestPath,
+        JSON.stringify(scopeData, null, 2),
+      );
       logger.info(`Wrote manifest for ${scopeName} to: ${scopeManifestPath}`);
     }
 
@@ -317,7 +388,9 @@ export async function initScopesCommand(args: Sinc.SharedCmdArgs) {
     if (failCount > 0) {
       logger.warn(`Failed to process: ${failCount} scopes`);
     }
-    logger.info(`Manifests written as per-scope files (sinc.manifest.<scope>.json)`);
+    logger.info(
+      `Manifests written as per-scope files (sinc.manifest.<scope>.json)`,
+    );
     logger.info(
       "\nAll scope files have been downloaded to their respective source directories.",
     );
