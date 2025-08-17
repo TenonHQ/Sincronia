@@ -1,10 +1,12 @@
 {
   "name": "@tenonhq/sincronia-typescript-plugin",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "TypeScript plugin for Sincronia",
   "main": "./dist/index.js",
   "scripts": {
-    "prepack": "npx tsc"
+    "prepack": "tsc",
+    "version:bump": "node ./../../Scripts/bump-version.js ./package.json",
+    "postpublish": "npm run version:bump"
   },
   "author": "Multiple",
   "license": "GPL-3.0",
@@ -26,6 +28,5 @@
   },
   "bugs": {
     "url": "https://github.com/tenon/sincronia/issues"
-  },
-  "gitHead": "67b694054cf072be150b9bd4dc3d1b01f8e24ed9"
+  }
 }

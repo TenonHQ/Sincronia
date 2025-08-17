@@ -20,7 +20,7 @@
     "node": ">=16.0.0"
   },
   "devDependencies": {
-    "@tenonhq/sincronia-types": "^0.0.2",
+    "@tenonhq/sincronia-types": "^0.0.3",
     "@types/dotenv": "^6.1.1",
     "@types/inquirer": "^8.2.10",
     "@types/jest": "^29.5.5",

@@ -1,6 +1,6 @@
 import { Sinc } from "@tenonhq/sincronia-types";
+import memoryFS from "memory-fs";
 import webpack from "webpack";
-import { createFsFromVolume, Volume } from "memfs";
 import path from "path";
 interface webpackPluginOpts {
   configGenerator?: (context: Sinc.FileContext) => webpack.Configuration;
@@ -11,10 +11,7 @@ const run: Sinc.PluginFunc = async function (
   content: string,
   options: webpackPluginOpts
 ): Promise<Sinc.PluginResults> {
-  // Create a memory filesystem using memfs (webpack 5 compatible)
-  const volume = new Volume();
-  const memFS = createFsFromVolume(volume);
-  
+  const memFS = new memoryFS();
   let wpOptions: webpack.Configuration = {};
   const configFile = await loadWebpackConfig();
   //First, try to load configuration file
@@ -37,13 +34,14 @@ const run: Sinc.PluginFunc = async function (
   };
   const compiler = webpack(wpOptions);
   
-  // Add null check for compiler
+  // Add null check for compiler to fix TypeScript error
   if (!compiler) {
     throw new Error("Failed to create webpack compiler");
   }
   
-  // Use the memfs filesystem as output filesystem
-  compiler.outputFileSystem = memFS as any;
+  // Use type assertion to fix incompatibility between memory-fs and webpack 5's OutputFileSystem
+  // This is a known issue when using memory-fs with webpack 5, but it still works at runtime
+  (compiler.outputFileSystem as any) = memFS;
   
   const compilePromise = new Promise<string>((resolve, reject) => {
     compiler.run((err, stats) => {
@@ -56,7 +54,7 @@ const run: Sinc.PluginFunc = async function (
         reject(new Error("Webpack failed to create the bundle."));
         return;
       }
-      resolve(memFS.readFileSync("/bundle.js", "utf-8") as string);
+      resolve(memFS.readFileSync("/bundle.js", "utf-8"));
     });
   });
   try {
