@@ -1,10 +1,12 @@
 {
   "name": "@tenonhq/sincronia-eslint-plugin",
-  "version": "0.4.2-alpha.3",
+  "version": "0.0.2",
   "description": "ESLint plugin for Sincronia",
   "main": "./dist/index.js",
   "scripts": {
-    "prepack": "tsc"
+    "prepack": "tsc",
+    "version:bump": "node ./../../Scripts/bump-version.js ./package.json",
+    "postpublish": "npm run version:bump"
   },
   "author": "Multiple",
   "license": "GPL-3.0",
@@ -12,7 +14,7 @@
     "eslint": "8.51.0"
   },
   "devDependencies": {
-    "@sincronia/types": "^0.4.2-alpha.3",
+    "@sincronia/types": "^0.0.4",
     "@types/eslint": "^8.44.4",
     "@types/prettier": "^2.7.3",
     "typescript": "^5.2.2"

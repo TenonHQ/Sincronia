@@ -1,6 +1,5 @@
 {
   "name": "@tenonhq/sincronia-webpack-plugin",
-  "version": "0.4.2-alpha.3",
   "description": "Webpack plugin for Sincronia",
   "main": "./dist/index.js",
   "repository": {
@@ -23,12 +22,11 @@
   },
   "homepage": "https://github.com/tenon/sincronia#readme",
   "dependencies": {
-    "memory-fs": "^0.5.0",
+    "memfs": "^3.5.3",
     "webpack": "^5.88.2"
   },
   "devDependencies": {
-    "@sincronia/types": "^0.4.2-alpha.3",
-    "@types/memory-fs": "^0.3.4",
+    "@tenonhq/sincronia-types": "^0.0.5",
     "@types/webpack": "^5.28.3"
   },
   "gitHead": "67b694054cf072be150b9bd4dc3d1b01f8e24ed9"

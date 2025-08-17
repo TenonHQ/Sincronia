@@ -1,6 +1,6 @@
 {
   "name": "@tenonhq/sincronia-core",
-  "version": "0.0.56",
+  "version": "0.0.57",
   "description": "Next-gen file syncer",
   "license": "GPL-3.0",
   "main": "./dist/index.js",
@@ -9,9 +9,7 @@
   "scripts": {
     "prepack": "tsc",
     "test": "jest --ci --reporters=jest-junit --reporters=default --coverage --coverageReporters=cobertura --coverageReporters=html",
-    "version:bump": "node bump-version.js",
-    "version:bump:commit": "./bump-version.sh --commit",
-    "version:bump:release": "./bump-version.sh --commit --tag --push",
+    "version:bump": "node ./../../Scripts/bump-version.js ./package.json",
     "postpublish": "npm run version:bump"
   },
   "repository": {

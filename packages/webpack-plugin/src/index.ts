@@ -1,6 +1,6 @@
-import { Sinc } from "@sincronia/types";
-import memoryFS from "memory-fs";
+import { Sinc } from "@tenonhq/sincronia-types";
 import webpack from "webpack";
+import { createFsFromVolume, Volume } from "memfs";
 import path from "path";
 interface webpackPluginOpts {
   configGenerator?: (context: Sinc.FileContext) => webpack.Configuration;
@@ -11,7 +11,10 @@ const run: Sinc.PluginFunc = async function (
   content: string,
   options: webpackPluginOpts
 ): Promise<Sinc.PluginResults> {
-  const memFS = new memoryFS();
+  // Create a memory filesystem using memfs (webpack 5 compatible)
+  const volume = new Volume();
+  const memFS = createFsFromVolume(volume);
+  
   let wpOptions: webpack.Configuration = {};
   const configFile = await loadWebpackConfig();
   //First, try to load configuration file
@@ -33,7 +36,15 @@ const run: Sinc.PluginFunc = async function (
     filename: "bundle.js",
   };
   const compiler = webpack(wpOptions);
-  compiler.outputFileSystem = memFS;
+  
+  // Add null check for compiler
+  if (!compiler) {
+    throw new Error("Failed to create webpack compiler");
+  }
+  
+  // Use the memfs filesystem as output filesystem
+  compiler.outputFileSystem = memFS as any;
+  
   const compilePromise = new Promise<string>((resolve, reject) => {
     compiler.run((err, stats) => {
       if (err) {
@@ -45,7 +56,7 @@ const run: Sinc.PluginFunc = async function (
         reject(new Error("Webpack failed to create the bundle."));
         return;
       }
-      resolve(memFS.readFileSync("/bundle.js", "utf-8"));
+      resolve(memFS.readFileSync("/bundle.js", "utf-8") as string);
     });
   });
   try {

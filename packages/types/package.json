@@ -1,10 +1,11 @@
 {
   "name": "@tenonhq/sincronia-types",
-  "version": "0.0.2",
+  "version": "0.0.5",
   "description": "Type Declarations for Sincronia",
   "main": "index.d.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "version:bump": "node ./../../Scripts/bump-version.js ./package.json",
+    "postpublish": "npm run version:bump"
   },
   "repository": {
     "type": "git",

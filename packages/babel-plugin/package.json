@@ -1,10 +1,12 @@
 {
   "name": "@tenonhq/sincronia-babel-plugin",
-  "version": "0.4.2-alpha.3",
+  "version": "0.0.2",
   "description": "Babel Plugin for sincronia",
   "main": "./dist/index.js",
   "scripts": {
-    "prepack": "tsc"
+    "prepack": "tsc",
+    "version:bump": "node ./../../Scripts/bump-version.js ./package.json",
+    "postpublish": "npm run version:bump"
   },
   "repository": {
     "type": "git",
@@ -27,7 +29,7 @@
     "@babel/types": "^7.23.0"
   },
   "devDependencies": {
-    "@sincronia/types": "^0.4.2-alpha.3",
+    "@sincronia/types": "^0.0.4",
     "@types/babel__core": "^7.20.2"
   },
   "gitHead": "67b694054cf072be150b9bd4dc3d1b01f8e24ed9"
