@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sincronia - Update Set Dashboard</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1><span>Sincronia</span> Update Set Dashboard</h1>
+    <div class="instance-badge" id="instance-badge">Loading...</div>
+  </header>
+
+  <div class="container">
+    <div class="scope-grid" id="scope-grid">
+      <div class="loading">Loading scopes...</div>
+    </div>
+  </div>
+
+  <!-- New Update Set Modal -->
+  <div class="modal-overlay" id="create-modal">
+    <div class="modal">
+      <h2>New Update Set</h2>
+      <div>
+        <label>Scope</label>
+        <input type="text" id="modal-scope" readonly>
+      </div>
+      <div>
+        <label>Name</label>
+        <input type="text" id="modal-name" placeholder="Update set name">
+      </div>
+      <div>
+        <label>Description (optional)</label>
+        <textarea id="modal-description" placeholder="What this update set is for"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" id="modal-create-btn" onclick="createUpdateSet()">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

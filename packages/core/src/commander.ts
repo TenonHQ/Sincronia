@@ -18,6 +18,8 @@ import {
   changeScopeCommand,
   showCurrentScopeCommand,
 } from "./updateSetCommands";
+import { dashboardCommand } from "./dashboardCommand";
+import { schemaPullCommand } from "./schemaCommand";
 import yargs from "yargs";
 export async function initCommands() {
   const sharedOptions = {
@@ -252,6 +254,41 @@ export async function initCommands() {
         return cmdArgs;
       },
       showCurrentScopeCommand,
+    )
+    .command(
+      "dashboard",
+      "Launch the Update Set Dashboard web UI",
+      sharedOptions,
+      dashboardCommand,
+    )
+    .command(
+      "schema <subcommand>",
+      "Manage ServiceNow table schemas (subcommands: pull)",
+      (cmdArgs: TSFIXME) => {
+        cmdArgs.positional("subcommand", {
+          describe: "Schema subcommand to run",
+          choices: ["pull"],
+        });
+        cmdArgs.options({
+          ...sharedOptions,
+          output: {
+            alias: "o",
+            type: "string",
+            describe: "Output directory for schema files (default: schema/)",
+          },
+          scope: {
+            alias: "s",
+            type: "string",
+            describe: "Pull schema for a single scope (default: all scopes from sinc.config.js)",
+          },
+        });
+        return cmdArgs;
+      },
+      (args: TSFIXME) => {
+        if (args.subcommand === "pull") {
+          schemaPullCommand(args);
+        }
+      },
     )
     .help().argv;
 }

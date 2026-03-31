@@ -1,5 +1,6 @@
 import chokidar from "chokidar";
 import { logFilePush } from "./logMessages";
+import { logger } from "./Logger";
 import { debounce } from "lodash";
 import { getFileContextFromPath } from "./FileUtils";
 import { Sinc } from "@tenonhq/sincronia-types";
@@ -27,6 +28,9 @@ const processQueue = debounce(async () => {
 export function startWatching(directory: string) {
   watcher = chokidar.watch(directory);
   watcher.on("change", fileChanged);
+  watcher.on("error", (error: Error) => {
+    logger.error(`Watcher error: ${error.message}`);
+  });
 }
 
 async function fileChanged(path: string) {

@@ -1,0 +1,12 @@
+{
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "rvest.vs-code-prettier-eslint",
+    "servicenow.now-vscode",
+    "stylelint.vscode-stylelint",
+    "servicenow.now-vscode",
+    "figma.figma-vscode-extension",
+    "github.copilot"
+  ]
+}

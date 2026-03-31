@@ -64,8 +64,7 @@ typings/
 dist/*
 **/node_modules
 **/dist
-node_modules
-.vscode
+node_modules/
 
 #Jest XML Output
 junit.xml

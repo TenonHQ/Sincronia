@@ -1,6 +1,8 @@
 import { Sinc, SN } from "@tenonhq/sincronia-types";
 import axios, { AxiosPromise, AxiosResponse } from "axios";
+import { wrapper } from "axios-cookiejar-support";
 import rateLimit from "axios-rate-limit";
+import { CookieJar } from "tough-cookie";
 import { wait } from "./genericUtils";
 import { logger } from "./Logger";
 import { fileLogger } from "./FileLogger";
@@ -54,18 +56,22 @@ export const snClient = (
   username: string,
   password: string,
 ) => {
+  const jar = new CookieJar();
   const client = rateLimit(
-    axios.create({
-      withCredentials: true,
-      auth: {
-        username,
-        password,
-      },
-      headers: {
-        "Content-Type": "application/json",
-      },
-      baseURL,
-    }),
+    wrapper(
+      axios.create({
+        withCredentials: true,
+        auth: {
+          username,
+          password,
+        },
+        headers: {
+          "Content-Type": "application/json",
+        },
+        baseURL,
+        jar,
+      } as any),
+    ),
     { maxRPS: 20 },
   );
 
@@ -283,6 +289,21 @@ export const snClient = (
     });
   };
 
+  const pushWithUpdateSet = (
+    updateSetSysId: string,
+    table: string,
+    recordSysId: string,
+    fields: Record<string, string>,
+  ) => {
+    const endpoint = "api/cadso/claude/pushWithUpdateSet";
+    return client.post(endpoint, {
+      update_set_sys_id: updateSetSysId,
+      table,
+      record_sys_id: recordSysId,
+      fields,
+    });
+  };
+
   return {
     getAppList,
     updateRecord,
@@ -301,6 +322,7 @@ export const snClient = (
     changeUpdateSet,
     getCurrentUpdateSet,
     changeScope,
+    pushWithUpdateSet,
     client, // Expose the axios client for custom queries
   };
 };

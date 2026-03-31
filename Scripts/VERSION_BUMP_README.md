@@ -67,7 +67,7 @@ When using `--commit` flag:
 
 ### For Sincronia Core Package
 ```bash
-cd /Users/dman89/Documents/Tenon/Development/Claude/Sincronia/packages/core
+cd /Users/dman89/Documents/Tenon/Development/Craftsman/Sincronia/packages/core
 
 # Quick version bump for testing
 npm run version:bump

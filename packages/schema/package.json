@@ -1,0 +1,35 @@
+{
+  "name": "@tenonhq/sincronia-schema",
+  "version": "0.0.1",
+  "description": "ServiceNow table schema fetcher and organizer for Sincronia",
+  "main": "./dist/index.js",
+  "scripts": {
+    "prepack": "tsc",
+    "version:bump": "node ./../../Scripts/bump-version.js ./package.json",
+    "postpublish": "npm run version:bump"
+  },
+  "author": "Multiple",
+  "license": "GPL-3.0",
+  "dependencies": {
+    "axios": "^1.5.1",
+    "chalk": "^4.1.2"
+  },
+  "devDependencies": {
+    "@tenonhq/sincronia-types": "^0.0.6",
+    "@types/node": "^20.8.4",
+    "typescript": "^5.2.2"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tenon/sincronia.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tenon/sincronia/issues"
+  }
+}

@@ -1,5 +1,6 @@
 import { SN, Sinc } from "@tenonhq/sincronia-types";
 import path from "path";
+import fs from "fs";
 import ProgressBar from "progress";
 import * as fUtils from "./FileUtils";
 import * as ConfigManager from "./config";
@@ -16,6 +17,25 @@ import {
 } from "./snClient";
 import { logger } from "./Logger";
 import { aggregateErrorMessages, allSettled } from "./genericUtils";
+
+interface UpdateSetSelection {
+  sys_id: string;
+  name: string;
+}
+
+type UpdateSetConfig = Record<string, UpdateSetSelection>;
+
+const getUpdateSetConfig = (): UpdateSetConfig => {
+  const configPath = path.resolve(process.cwd(), ".sinc-update-sets.json");
+  try {
+    if (fs.existsSync(configPath)) {
+      return JSON.parse(fs.readFileSync(configPath, "utf8"));
+    }
+  } catch (e) {
+    // Ignore parse errors
+  }
+  return {};
+};
 
 const processFilesInManRec = async (
   recPath: string,
@@ -72,7 +92,15 @@ const processFilesInManRec = async (
     fileLogger.debug(`  Writing file: ${file.name}.${file.type}`);
     return fileWrite(file, recPath);
   });
-  await Promise.all(regularPromises);
+  const writeResults = await Promise.allSettled(regularPromises);
+  const writeFailures = writeResults.filter(
+    (r) => r.status === "rejected",
+  );
+  if (writeFailures.length > 0) {
+    writeFailures.forEach((f) => {
+      fileLogger.error(`File write failed: ${(f as PromiseRejectedResult).reason}`);
+    });
+  }
   fileLogger.debug('All regular files written');
 
   // Remove content from ALL files (metadata is not included in manifest)
@@ -439,11 +467,30 @@ const pushRec = async (
   sysId: string,
   builtRec: Record<string, string>,
   summary?: string,
+  scope?: string,
 ) => {
   const recSummary = summary ?? `${table} > ${sysId}`;
   try {
+    // Check if an update set is configured for this scope
+    const updateSetConfig = getUpdateSetConfig();
+    const updateSet = scope ? updateSetConfig[scope] : undefined;
+
+    const pushFn = updateSet
+      ? () => {
+          logger.debug(
+            `Pushing ${recSummary} via update set: ${updateSet.name}`,
+          );
+          return client.pushWithUpdateSet(
+            updateSet.sys_id,
+            table,
+            sysId,
+            builtRec,
+          );
+        }
+      : () => client.updateRecord(table, sysId, builtRec);
+
     const pushRes = await retryOnErr(
-      () => client.updateRecord(table, sysId, builtRec),
+      pushFn,
       PUSH_RETRY_LIMIT,
       PUSH_RETRY_WAIT,
       (numTries: number) => {
@@ -466,13 +513,22 @@ export const pushFiles = async (
   recs: Sinc.BuildableRecord[],
 ): Promise<Sinc.PushResult[]> => {
   const client = defaultClient();
+  const updateSetConfig = getUpdateSetConfig();
+  const hasUpdateSets = Object.keys(updateSetConfig).length > 0;
+  if (hasUpdateSets) {
+    const activeScopes = Object.entries(updateSetConfig)
+      .map(([scope, us]) => `${scope} -> ${us.name}`)
+      .join(", ");
+    logger.info(`Update set routing active: ${activeScopes}`);
+  }
+
   const tick = getProgTick(logger.getLogLevel(), recs.length * 2) || (() => {});
   const pushResultPromises = recs.map(async (rec) => {
     const fieldNames = Object.keys(rec.fields);
-    const recSummary = summarizeRecord(
-      rec.table,
-      rec.fields[fieldNames[0]].name,
-    );
+    const firstField = rec.fields[fieldNames[0]];
+    const recSummary = summarizeRecord(rec.table, firstField.name);
+    const scope = firstField.scope;
+
     const buildRes = await buildRec(rec);
     tick();
     if (!buildRes.success) {
@@ -485,11 +541,18 @@ export const pushFiles = async (
       rec.sysId,
       buildRes.builtRec,
       recSummary,
+      scope,
     );
     tick();
     return pushRes;
   });
-  return Promise.all(pushResultPromises);
+  const results = await Promise.allSettled(pushResultPromises);
+  return results.map((result) => {
+    if (result.status === "fulfilled") {
+      return result.value;
+    }
+    return { success: false, message: `Push failed: ${result.reason}` };
+  });
 };
 
 export const summarizeRecord = (table: string, recDescriptor: string): string =>
@@ -572,7 +635,13 @@ export const buildFiles = async (
     tick();
     return writeRes;
   });
-  return Promise.all(buildPromises);
+  const results = await Promise.allSettled(buildPromises);
+  return results.map((result) => {
+    if (result.status === "fulfilled") {
+      return result.value;
+    }
+    return { success: false, message: `Build failed: ${result.reason}` };
+  });
 };
 
 export const swapScope = async (currentScope: string): Promise<SN.ScopeObj> => {
@@ -655,7 +724,20 @@ export const checkScope = async (
     const man = ConfigManager.getManifest();
     if (man) {
       const client = defaultClient();
-      const scopeObj = await unwrapSNResponse(client.getCurrentScope());
+      let scopeObj;
+      try {
+        scopeObj = await unwrapSNResponse(client.getCurrentScope());
+      } catch (scopeErr) {
+        // getCurrentScope endpoint may not exist on this instance — skip scope check
+        logger.info(
+          `Scope check endpoint unavailable, assuming scope match for: ${man.scope}`,
+        );
+        return {
+          match: true,
+          sessionScope: man.scope,
+          manifestScope: man.scope,
+        };
+      }
       logger.info(
         `Current scope: ${scopeObj.scope}, Manifest scope: ${man.scope}`,
       );

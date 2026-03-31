@@ -3,7 +3,10 @@
     "outDir": "./dist",
     "baseUrl": "./",
     "types": ["jest", "node"],
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "paths": {
+      "@tenonhq/sincronia-schema": ["../schema/src/index"]
+    }
   },
   "extends": "../../tsconfig.json"
 }

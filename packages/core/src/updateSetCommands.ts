@@ -59,7 +59,7 @@ export async function showCurrentScopeCommand(args: any): Promise<void> {
   } catch (e) {
     logger.error("Failed to get current scope");
     if (e instanceof Error) logger.error(e.message);
-    process.exit(1);
+    throw e;
   }
 }
 
@@ -110,11 +110,9 @@ export async function changeScopeCommand(args: any): Promise<void> {
         logger.info(`Current update set: ${updateSet.name}`);
       }
     } else if (result && result.error) {
-      logger.error(`Failed to switch scope: ${result.error}`);
-      process.exit(1);
+      throw new Error(`Failed to switch scope: ${result.error}`);
     } else {
-      logger.error("Failed to switch scope - unexpected response");
-      process.exit(1);
+      throw new Error("Failed to switch scope - unexpected response");
     }
   } catch (e) {
     logger.error("Failed to change scope");
@@ -125,7 +123,7 @@ export async function changeScopeCommand(args: any): Promise<void> {
         logger.error(`Response data: ${JSON.stringify((e as any).response.data)}`);
       }
     }
-    process.exit(1);
+    throw e;
   }
 }
 
@@ -169,7 +167,7 @@ export async function showCurrentUpdateSetCommand(args: any): Promise<void> {
         logger.error(`Response data: ${JSON.stringify((e as any).response.data)}`);
       }
     }
-    process.exit(1);
+    throw e;
   }
 }
 
@@ -191,8 +189,7 @@ export async function createUpdateSetCommand(args: any): Promise<void> {
       // Get scope sys_id if scope name provided
       const scopeResult = await unwrapSNResponse(client.getScopeId(scope));
       if (scopeResult.length === 0) {
-        logger.error(`Scope "${scope}" not found`);
-        process.exit(1);
+        throw new Error(`Scope "${scope}" not found`);
       }
       scopeSysId = scopeResult[0].sys_id;
       
@@ -228,7 +225,7 @@ export async function createUpdateSetCommand(args: any): Promise<void> {
   } catch (e) {
     logger.error("Failed to create update set");
     if (e instanceof Error) logger.error(e.message);
-    process.exit(1);
+    throw e;
   }
 }
 
@@ -245,8 +242,7 @@ export async function switchUpdateSetCommand(args: any): Promise<void> {
     const targetUpdateSet = await selectUpdateSet(args.name, args.scope);
     
     if (!targetUpdateSet) {
-      logger.error("No update set selected");
-      process.exit(1);
+      throw new Error("No update set selected");
     }
     
     // Extract the actual values from display_value objects
@@ -267,7 +263,7 @@ export async function switchUpdateSetCommand(args: any): Promise<void> {
   } catch (e) {
     logger.error("Failed to switch update set");
     if (e instanceof Error) logger.error(e.message);
-    process.exit(1);
+    throw e;
   }
 }
 
@@ -287,8 +283,7 @@ export async function listUpdateSetsCommand(args: any): Promise<void> {
       // Get scope sys_id if scope name provided
       const scopeResult = await unwrapSNResponse(client.getScopeId(args.scope));
       if (scopeResult.length === 0) {
-        logger.error(`Scope "${args.scope}" not found`);
-        process.exit(1);
+        throw new Error(`Scope "${args.scope}" not found`);
       }
       query += `^application=${scopeResult[0].sys_id}`;
     }
@@ -342,7 +337,7 @@ export async function listUpdateSetsCommand(args: any): Promise<void> {
   } catch (e) {
     logger.error("Failed to list update sets");
     if (e instanceof Error) logger.error(e.message);
-    process.exit(1);
+    throw e;
   }
 }
 

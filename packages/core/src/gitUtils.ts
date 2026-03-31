@@ -1,4 +1,5 @@
 import * as cp from "child_process";
+import { promisify } from "util";
 import path from "path";
 import { logger } from "./Logger";
 import { PATH_DELIMITER } from "./constants";
@@ -6,22 +7,22 @@ import * as ConfigManager from "./config";
 import fs from "fs";
 import * as fUtils from "./FileUtils";
 
+const execFile = promisify(cp.execFile);
+
 export const gitDiffToEncodedPaths = async (diff: string) => {
   if (diff !== "") return gitDiff(diff, ConfigManager.getSourcePath());
   return ConfigManager.getSourcePath();
 };
 
 const gitDiff = async (target: string, sourcePath: string): Promise<string> => {
-  return new Promise<string>((resolve, reject) => {
-    const cmdStr = `git diff --name-status ${target}... -- ${sourcePath}`;
-    cp.exec(cmdStr, (err, stdout, stderr) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(formatGitFiles(stdout.trim()));
-      }
-    });
-  });
+  const { stdout } = await execFile("git", [
+    "diff",
+    "--name-status",
+    `${target}...`,
+    "--",
+    sourcePath,
+  ]);
+  return formatGitFiles(stdout.trim());
 };
 
 export const writeDiff = async (files: string) => {
@@ -58,15 +59,8 @@ const formatGitFiles = async (gitFiles: string) => {
 };
 
 const getRepoRootDir = async (): Promise<string> => {
-  return new Promise<string>((resolve, reject) => {
-    cp.exec("git rev-parse --show-toplevel", (err, stdout, stderr) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(stdout.trim());
-      }
-    });
-  });
+  const { stdout } = await execFile("git", ["rev-parse", "--show-toplevel"]);
+  return stdout.trim();
 };
 
 const isValidScope = (

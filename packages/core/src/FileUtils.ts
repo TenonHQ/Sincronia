@@ -279,16 +279,21 @@ export const writeBuildFile = async (
   newPath: string,
   fileContents: string,
 ) => {
+  const buildPath = ConfigManager.getBuildPath();
+  const resolvedFolder = path.resolve(folderPath);
+  const resolvedFile = path.resolve(newPath);
+  if (!isUnderPath(buildPath, resolvedFolder) || !isUnderPath(buildPath, resolvedFile)) {
+    throw new Error(
+      `Write rejected: path "${resolvedFile}" is outside build directory "${buildPath}"`,
+    );
+  }
+
   try {
     await fsp.access(folderPath, fs.constants.F_OK);
   } catch (e) {
     await fsp.mkdir(folderPath, { recursive: true });
   }
-  try {
-    await fsp.writeFile(newPath, fileContents);
-  } catch (e) {
-    throw e;
-  }
+  await fsp.writeFile(newPath, fileContents);
 };
 
 export const writeSNFileIfNotExists = writeSNFileCurry(true);
