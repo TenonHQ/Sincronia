@@ -11,8 +11,8 @@ Sincronia is a powerful development tool that enables modern ServiceNow developm
 ### Installation and Setup
 
 ```bash
-# Node.js v16.20.2 required
-nvm use 16
+# Node.js v20 LTS required
+nvm use 20
 
 # Install Sincronia globally
 npm install -g @sincronia/cli
@@ -226,7 +226,7 @@ sinc refresh --scope x_cadso_core
    - Use `sinc diff` to investigate
 
 3. **Build Errors**
-   - Verify Node.js version (16.20.2)
+   - Verify Node.js version (20 LTS)
    - Check plugin configurations
    - Review TypeScript settings
 
@@ -237,7 +237,7 @@ sinc refresh --scope x_cadso_core
 
 ## Notes
 
-- **Version Requirement**: Node.js v16.20.2 required
+- **Version Requirement**: Node.js v20 LTS required
 - **Instance Access**: Requires admin or developer role
 - **Manifest Files**: Critical for tracking synchronization
 - **Async Nature**: All operations are asynchronous

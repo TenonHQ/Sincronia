@@ -23,7 +23,7 @@
     "@babel/types": "^7.23.0"
   },
   "devDependencies": {
-    "@sincronia/types": "^0.0.4",
+    "@tenonhq/sincronia-types": "^0.0.6",
     "@types/babel__core": "^7.20.2"
   },
   "publishConfig": {

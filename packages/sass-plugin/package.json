@@ -25,11 +25,10 @@
   },
   "homepage": "https://github.com/tenon/sincronia#readme",
   "dependencies": {
-    "node-sass": "^9.0.0"
+    "sass": "^1.69.0"
   },
   "devDependencies": {
-    "@sincronia/types": "^0.0.4",
-    "@types/node-sass": "^4.11.5"
+    "@tenonhq/sincronia-types": "^0.0.6"
   },
   "gitHead": "67b694054cf072be150b9bd4dc3d1b01f8e24ed9"
 }

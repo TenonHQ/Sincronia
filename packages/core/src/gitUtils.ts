@@ -45,7 +45,7 @@ const formatGitFiles = async (gitFiles: string) => {
       const modCode = diffFile.charAt(0);
 
       if (modCode !== "D") {
-        const filePath = diffFile.substr(1, diffFile.length - 1).trim();
+        const filePath = diffFile.slice(1).trim();
 
         if (isValidScope(filePath, workspaceDir, baseRepoPath)) {
           logger.info(diffFile);

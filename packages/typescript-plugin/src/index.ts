@@ -1,4 +1,4 @@
-import { Sinc } from "@sincronia/types";
+import { Sinc } from "@tenonhq/sincronia-types";
 import * as ts from "typescript";
 const run: Sinc.PluginFunc = async function(
   context: Sinc.FileContext,

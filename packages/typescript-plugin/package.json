@@ -14,7 +14,7 @@
     "typescript": "^5.2.2"
   },
   "devDependencies": {
-    "@sincronia/types": "^0.0.4"
+    "@tenonhq/sincronia-types": "^0.0.6"
   },
   "files": [
     "dist"

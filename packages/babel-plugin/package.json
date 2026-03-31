@@ -29,7 +29,7 @@
     "@babel/types": "^7.23.0"
   },
   "devDependencies": {
-    "@sincronia/types": "^0.0.4",
+    "@tenonhq/sincronia-types": "^0.0.6",
     "@types/babel__core": "^7.20.2"
   },
   "gitHead": "67b694054cf072be150b9bd4dc3d1b01f8e24ed9"

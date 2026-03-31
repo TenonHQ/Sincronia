@@ -14,7 +14,7 @@
     "eslint": "8.51.0"
   },
   "devDependencies": {
-    "@sincronia/types": "^0.0.4",
+    "@tenonhq/sincronia-types": "^0.0.6",
     "@types/eslint": "^8.44.4",
     "@types/prettier": "^2.7.3",
     "typescript": "^5.2.2"

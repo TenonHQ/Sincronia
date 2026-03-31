@@ -18,7 +18,7 @@
     "url": "https://github.com/tenon/sincronia.git"
   },
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=20.0.0"
   },
   "devDependencies": {
     "@tenonhq/sincronia-types": "^0.0.6",

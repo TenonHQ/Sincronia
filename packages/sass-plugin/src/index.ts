@@ -1,16 +1,14 @@
-import { Sinc } from "@sincronia/types";
-import sass from "node-sass";
+import { Sinc } from "@tenonhq/sincronia-types";
+import * as sass from "sass";
 const run: Sinc.PluginFunc = async function(
   context: Sinc.FileContext,
   content: string,
   options: any
 ): Promise<Sinc.PluginResults> {
   try {
-    let res = sass.renderSync({
-      file: context.filePath
-    });
+    let res = sass.compile(context.filePath);
     return {
-      output: res.css.toString("utf8"),
+      output: res.css,
       success: true
     };
   } catch (e) {
