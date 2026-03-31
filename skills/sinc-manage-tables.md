@@ -5,6 +5,18 @@ $ARGUMENTS
 
 ## Instructions for Claude
 
+### Directory Context
+
+Sincronia commands can be run from two locations:
+- **From `ServiceNow/` directory:** `npx sinc <command>`
+- **From Craftsman root:** `npm run sinc:<command>` (proxy scripts)
+
+Available root scripts: `sinc:init`, `sinc:start`, `sinc:dev`, `sinc:build`, `sinc:deploy`, `sinc:push`, `sinc:refresh`, `sinc:status`
+
+When this skill references `npx sinc <command>`, use `npm run sinc:<command>` if working from the Craftsman root. Configuration files (`sinc.config.js`) live in the `ServiceNow/` directory.
+
+---
+
 Help the user configure which ServiceNow tables and fields Sincronia tracks, and how records are organized locally.
 
 ### How Table Filtering Works

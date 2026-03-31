@@ -5,6 +5,18 @@ $ARGUMENTS
 
 ## Instructions for Claude
 
+### Directory Context
+
+Sincronia commands can be run from two locations:
+- **From `ServiceNow/` directory:** `npx sinc <command>`
+- **From Craftsman root:** `npm run sinc:<command>` (proxy scripts)
+
+Available root scripts: `sinc:init`, `sinc:start`, `sinc:dev`, `sinc:build`, `sinc:deploy`, `sinc:push`, `sinc:refresh`, `sinc:status`
+
+When running from Craftsman root, `sinc.config.js` is at `ServiceNow/sinc.config.js`. When running from `ServiceNow/`, it is at `./sinc.config.js`. Use the path appropriate to the current working directory.
+
+---
+
 The user wants to configure or modify their `sinc.config.js` plugin pipeline. Help them set up the `rules` array with the correct plugins, ordering, and options.
 
 ### Key Principles

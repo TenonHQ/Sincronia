@@ -7,7 +7,8 @@
   "author": "Multiple",
   "private": false,
   "scripts": {
-    "prepack": "tsc",
+    "copy:skills": "mkdir -p skills && cp ../../skills/*.md ./skills/",
+    "prepack": "npm run copy:skills && tsc",
     "test": "jest --ci --reporters=jest-junit --reporters=default --coverage --coverageReporters=cobertura --coverageReporters=html",
     "version:bump": "node ./../../Scripts/bump-version.js ./package.json",
     "postpublish": "npm run version:bump"
@@ -56,6 +57,7 @@
   },
   "files": [
     "dist/**/*",
+    "skills/**/*",
     "README.md"
   ],
   "publishConfig": {

@@ -5,6 +5,18 @@ $ARGUMENTS
 
 ## Instructions for Claude
 
+### Directory Context
+
+Sincronia commands can be run from two locations:
+- **From `ServiceNow/` directory:** `npx sinc <command>`
+- **From Craftsman root:** `npm run sinc:<command>` (proxy scripts)
+
+Available root scripts: `sinc:init`, `sinc:start`, `sinc:dev`, `sinc:build`, `sinc:deploy`, `sinc:push`, `sinc:refresh`, `sinc:status`
+
+When this skill references `npx sinc <command>`, use `npm run sinc:<command>` if working from the Craftsman root. References to "project root" mean the `ServiceNow/` directory (where `sinc.config.js`, `.env`, and manifest files live).
+
+---
+
 Help the user diagnose and fix Sincronia synchronization problems. Follow this systematic diagnostic approach.
 
 ### Step 1: Identify the Symptom Category

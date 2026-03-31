@@ -5,6 +5,18 @@ $ARGUMENTS
 
 ## Instructions for Claude
 
+### Directory Context
+
+Sincronia commands can be run from two locations:
+- **From `ServiceNow/` directory:** `npx sinc <command>`
+- **From Craftsman root:** `npm run sinc:<command>` (proxy scripts)
+
+Available root scripts: `sinc:init`, `sinc:start`, `sinc:dev`, `sinc:build`, `sinc:deploy`, `sinc:push`, `sinc:refresh`, `sinc:status`
+
+Plugin files and `sinc.config.js` live in the `ServiceNow/` directory. When referencing paths from the Craftsman root, prefix with `ServiceNow/`.
+
+---
+
 Help the user create a custom Sincronia build plugin. A plugin is a Node.js module that transforms file content during the build pipeline.
 
 ### Plugin Interface

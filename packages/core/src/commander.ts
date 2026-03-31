@@ -20,6 +20,7 @@ import {
 } from "./updateSetCommands";
 import { dashboardCommand } from "./dashboardCommand";
 import { schemaPullCommand } from "./schemaCommand";
+import { initClaudeCommand } from "./claudeCommand";
 import yargs from "yargs";
 export async function initCommands() {
   const sharedOptions = {
@@ -288,6 +289,25 @@ export async function initCommands() {
         if (args.subcommand === "pull") {
           schemaPullCommand(args);
         }
+      },
+    )
+    .command(
+      "init-claude",
+      "Install Sincronia Claude Code skills to .claude/commands/",
+      (cmdArgs) => {
+        cmdArgs.options({
+          ...sharedOptions,
+          force: {
+            alias: "f",
+            type: "boolean",
+            default: false,
+            describe: "Overwrite existing skill files",
+          },
+        });
+        return cmdArgs;
+      },
+      (args: TSFIXME) => {
+        initClaudeCommand(args);
       },
     )
     .help().argv;
