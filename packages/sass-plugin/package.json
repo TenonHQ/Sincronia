@@ -1,6 +1,6 @@
 {
   "name": "@tenonhq/sincronia-sass-plugin",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "SASS plugin for Sincronia",
   "main": "./dist/index.js",
   "scripts": {

@@ -8,13 +8,35 @@
 </head>
 <body>
   <header>
-    <h1><span>Sincronia</span> Update Set Dashboard</h1>
-    <div class="instance-badge" id="instance-badge">Loading...</div>
+    <div class="header-left">
+      <button class="sidebar-toggle" id="sidebar-toggle" title="ClickUp Tasks" style="display:none;">Tasks</button>
+      <h1><span>Sincronia</span> Update Set Dashboard</h1>
+    </div>
+    <div class="header-right">
+      <div class="active-task-chip" id="active-task-chip" style="display:none;"></div>
+      <div class="instance-badge" id="instance-badge">Loading...</div>
+    </div>
   </header>
 
-  <div class="container">
-    <div class="scope-grid" id="scope-grid">
-      <div class="loading">Loading scopes...</div>
+  <div class="layout">
+    <!-- ClickUp Task Sidebar -->
+    <div class="sidebar collapsed" id="task-sidebar">
+      <div class="sidebar-header">
+        <h2>ClickUp Tasks</h2>
+        <button class="sidebar-close" id="sidebar-close">&times;</button>
+      </div>
+      <div class="sidebar-active-task" id="active-task-banner" style="display:none;"></div>
+      <div class="sidebar-filters" id="status-filters"></div>
+      <div class="sidebar-tasks" id="task-list">
+        <div class="loading">Select statuses to load tasks...</div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content" id="main-content">
+      <div class="scope-grid" id="scope-grid">
+        <div class="loading">Loading scopes...</div>
+      </div>
     </div>
   </div>
 

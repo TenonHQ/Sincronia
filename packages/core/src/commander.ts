@@ -21,6 +21,19 @@ import {
 import { dashboardCommand } from "./dashboardCommand";
 import { schemaPullCommand } from "./schemaCommand";
 import { initClaudeCommand } from "./claudeCommand";
+import { createRecordCommand } from "./createRecordCommand";
+import { deleteRecordCommand } from "./deleteRecordCommand";
+import {
+  clickupTasksCommand,
+  clickupTaskCommand,
+  clickupCreateCommand,
+  clickupUpdateCommand,
+  clickupCommentCommand,
+  clickupSetupCommand,
+  clickupTeamsCommand,
+  clickupSpacesCommand,
+  clickupListsCommand,
+} from "./clickupCommands";
 import yargs from "yargs";
 export async function initCommands() {
   const sharedOptions = {
@@ -63,6 +76,12 @@ export async function initCommands() {
             describe:
               "Will create a new update set with the provided anme to store all changes into",
           },
+          clickup: {
+            alias: "cu",
+            type: "string",
+            describe:
+              "ClickUp task ID or URL — creates update set from ClickUp task data",
+          },
           ci: {
             type: "boolean",
             default: false,
@@ -98,7 +117,8 @@ export async function initCommands() {
           alias: "d",
           type: "number",
           default: 0,
-          describe: "Delay in milliseconds between API calls (to prevent server overload)",
+          describe:
+            "Delay in milliseconds between API calls (to prevent server overload)",
         },
       },
       initScopesCommand,
@@ -133,6 +153,84 @@ export async function initCommands() {
       "Deploy local build files to the scoped application",
       sharedOptions,
       deployCommand,
+    )
+    .command(
+      "create <table>",
+      "Create a new record on the ServiceNow instance",
+      (cmdArgs: TSFIXME) => {
+        cmdArgs.positional("table", {
+          describe: "ServiceNow table name (e.g., sys_script_include)",
+          type: "string",
+        });
+        cmdArgs.options({
+          ...sharedOptions,
+          name: {
+            alias: "n",
+            type: "string",
+            describe: "Record name",
+          },
+          scope: {
+            alias: "s",
+            type: "string",
+            describe: "Target scope (e.g., x_cadso_core)",
+          },
+          from: {
+            alias: "f",
+            type: "string",
+            describe: "Path to JSON file with field values",
+          },
+          field: {
+            type: "array",
+            describe:
+              "Field values as key=value pairs (e.g., --field active=true)",
+          },
+          ci: {
+            type: "boolean",
+            default: false,
+            describe: "Skip interactive prompts",
+          },
+        });
+        return cmdArgs;
+      },
+      createRecordCommand,
+    )
+    .command(
+      "delete <table> [name]",
+      "Delete a record from the ServiceNow instance",
+      (cmdArgs: TSFIXME) => {
+        cmdArgs.positional("table", {
+          describe: "ServiceNow table name (e.g., sys_script_include)",
+          type: "string",
+        });
+        cmdArgs.positional("name", {
+          describe: "Record name to delete",
+          type: "string",
+        });
+        cmdArgs.options({
+          ...sharedOptions,
+          scope: {
+            alias: "s",
+            type: "string",
+            describe: "Target scope (e.g., x_cadso_core)",
+          },
+          sysid: {
+            type: "string",
+            describe: "Delete by sys_id directly (skip manifest lookup)",
+          },
+          ci: {
+            type: "boolean",
+            default: false,
+            describe: "Skip confirmation prompt",
+          },
+          keepLocal: {
+            type: "boolean",
+            default: false,
+            describe: "Keep local files after deleting from instance",
+          },
+        });
+        return cmdArgs;
+      },
+      deleteRecordCommand,
     )
     .command(
       "status",
@@ -170,6 +268,12 @@ export async function initCommands() {
             type: "boolean",
             default: false,
             describe: "Skip prompting for scope",
+          },
+          clickup: {
+            alias: "cu",
+            type: "string",
+            describe:
+              "ClickUp task ID or URL to generate update set name and description from",
           },
         });
         return cmdArgs;
@@ -280,7 +384,8 @@ export async function initCommands() {
           scope: {
             alias: "s",
             type: "string",
-            describe: "Pull schema for a single scope (default: all scopes from sinc.config.js)",
+            describe:
+              "Pull schema for a single scope (default: all scopes from sinc.config.js)",
           },
         });
         return cmdArgs;
@@ -308,6 +413,132 @@ export async function initCommands() {
       },
       (args: TSFIXME) => {
         initClaudeCommand(args);
+      },
+    )
+    .command(
+      "clickup",
+      "ClickUp task management commands",
+      function (cmdArgs: TSFIXME) {
+        return cmdArgs
+          .command(
+            "tasks",
+            "List my tasks grouped by status",
+            function (sub: TSFIXME) {
+              sub.options({
+                ...sharedOptions,
+                team: {
+                  type: "string",
+                  describe: "ClickUp team/workspace ID",
+                },
+                status: {
+                  type: "array",
+                  describe: "Filter by status(es)",
+                },
+              });
+              return sub;
+            },
+            clickupTasksCommand,
+          )
+          .command(
+            "task <id>",
+            "Get task details",
+            function (sub: TSFIXME) {
+              sub.positional("id", {
+                describe: "ClickUp task ID or URL",
+                type: "string",
+              });
+              sub.options(sharedOptions);
+              return sub;
+            },
+            clickupTaskCommand,
+          )
+          .command(
+            "create <list-id>",
+            "Create a task (interactive)",
+            function (sub: TSFIXME) {
+              sub.positional("listId", {
+                describe: "ClickUp list ID to create the task in",
+                type: "string",
+              });
+              sub.options(sharedOptions);
+              return sub;
+            },
+            clickupCreateCommand,
+          )
+          .command(
+            "update <task-id>",
+            "Update a task (interactive)",
+            function (sub: TSFIXME) {
+              sub.positional("taskId", {
+                describe: "ClickUp task ID or URL",
+                type: "string",
+              });
+              sub.options(sharedOptions);
+              return sub;
+            },
+            clickupUpdateCommand,
+          )
+          .command(
+            "comment <task-id> <msg>",
+            "Add comment to task",
+            function (sub: TSFIXME) {
+              sub.positional("taskId", {
+                describe: "ClickUp task ID or URL",
+                type: "string",
+              });
+              sub.positional("msg", {
+                describe: "Comment message",
+                type: "string",
+              });
+              sub.options(sharedOptions);
+              return sub;
+            },
+            clickupCommentCommand,
+          )
+          .command(
+            "teams",
+            "List workspaces/teams your token belongs to",
+            sharedOptions,
+            clickupTeamsCommand,
+          )
+          .command(
+            "setup",
+            "Configure ClickUp API token and default workspace",
+            sharedOptions,
+            clickupSetupCommand,
+          )
+          .command(
+            "spaces",
+            "List available spaces in a workspace",
+            function (sub: TSFIXME) {
+              sub.options({
+                ...sharedOptions,
+                team: {
+                  type: "string",
+                  describe: "ClickUp team/workspace ID",
+                },
+              });
+              return sub;
+            },
+            clickupSpacesCommand,
+          )
+          .command(
+            "lists <space-or-folder>",
+            "List available lists in a folder or space",
+            function (sub: TSFIXME) {
+              sub.positional("spaceOrFolder", {
+                describe: "Space ID or folder ID",
+                type: "string",
+              });
+              sub.options(sharedOptions);
+              return sub;
+            },
+            clickupListsCommand,
+          )
+          .demandCommand(1, "Please specify a clickup subcommand");
+      },
+      function () {
+        /* subcommands handle execution */
       },
     )
     .help().argv;

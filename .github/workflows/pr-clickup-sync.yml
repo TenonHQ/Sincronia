@@ -1,0 +1,57 @@
+# Caller workflow template — deploy this to child repos as .github/workflows/pr-clickup-sync.yml
+# It determines the PR event type and calls the reusable workflow in Craftsman.
+
+name: PR ClickUp Sync
+
+on:
+  pull_request:
+    types: [opened, closed]
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  determine-event:
+    runs-on: ubuntu-latest
+    outputs:
+      pr_event: ${{ steps.event.outputs.pr_event }}
+      should_run: ${{ steps.event.outputs.should_run }}
+    steps:
+      - name: Determine PR event type
+        id: event
+        uses: actions/github-script@v7
+        with:
+          script: |
+            var event = context.eventName;
+            var action = context.payload.action;
+            var prEvent = "";
+            var shouldRun = "true";
+
+            if (event === "pull_request" && action === "opened") {
+              prEvent = "opened";
+            } else if (event === "pull_request_review" && context.payload.review && context.payload.review.state === "approved") {
+              prEvent = "approved";
+            } else if (event === "pull_request" && action === "closed" && context.payload.pull_request.merged) {
+              prEvent = "merged";
+            } else if (event === "pull_request" && action === "closed" && !context.payload.pull_request.merged) {
+              prEvent = "closed";
+            } else {
+              shouldRun = "false";
+            }
+
+            core.setOutput("pr_event", prEvent);
+            core.setOutput("should_run", shouldRun);
+
+  sync:
+    needs: determine-event
+    if: needs.determine-event.outputs.should_run == 'true'
+    uses: TenonHQ/Craftsman/.github/workflows/pr-clickup-sync.yml@main
+    with:
+      pr_event: ${{ needs.determine-event.outputs.pr_event }}
+      pr_body: ${{ github.event.pull_request.body }}
+      pr_url: ${{ github.event.pull_request.html_url }}
+      pr_number: ${{ github.event.pull_request.number }}
+      target_branch: ${{ github.event.pull_request.base.ref }}
+      pr_title: ${{ github.event.pull_request.title }}
+      repo_full_name: ${{ github.repository }}
+    secrets:
+      CLICKUP_API_TOKEN: ${{ secrets.CLICKUP_API_TOKEN }}

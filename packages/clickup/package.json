@@ -1,7 +1,7 @@
 {
-  "name": "@tenonhq/sincronia-prettier-plugin",
-  "version": "0.0.4",
-  "description": "Prettier plugin for Sincronia",
+  "name": "@tenonhq/sincronia-clickup",
+  "version": "0.0.2",
+  "description": "ClickUp API v2 client for Sincronia — task management, update set integration",
   "main": "./dist/index.js",
   "scripts": {
     "prepack": "tsc",
@@ -10,9 +10,11 @@
   },
   "author": "Multiple",
   "license": "GPL-3.0",
+  "dependencies": {
+    "axios": "^1.5.1"
+  },
   "devDependencies": {
-    "@tenonhq/sincronia-types": "^0.0.6",
-    "@types/prettier": "^2.7.3",
+    "@types/node": "^20.8.4",
     "typescript": "^5.2.2"
   },
   "files": [
@@ -27,6 +29,5 @@
   },
   "bugs": {
     "url": "https://github.com/tenon/sincronia/issues"
-  },
-  "gitHead": "67b694054cf072be150b9bd4dc3d1b01f8e24ed9"
+  }
 }

@@ -110,14 +110,26 @@ export async function pushCommand(args: Sinc.PushCmdArgs): Promise<void> {
         if (!answers["confirmed"]) return;
       }
 
+      // Handle --clickup flag: resolve ClickUp task into an update set name
+      let resolvedUpdateSet = updateSet;
+      if (!resolvedUpdateSet && (args as any).clickup) {
+        try {
+          const { resolveClickUpForPush } = await import("./clickupPushHelper");
+          resolvedUpdateSet = await resolveClickUpForPush((args as any).clickup);
+        } catch (cuErr) {
+          if (cuErr instanceof Error) logger.error(cuErr.message);
+          process.exit(1);
+        }
+      }
+
       // Does not create update set if updateSetName is blank
-      if (updateSet) {
+      if (resolvedUpdateSet) {
         if (!skipPrompt) {
           let answers: { confirmed: boolean } = await inquirer.prompt([
             {
               type: "confirm",
               name: "confirmed",
-              message: `A new Update Set "${updateSet}" will be created for these pushed changes. Do you want to proceed?`,
+              message: `A new Update Set "${resolvedUpdateSet}" will be created for these pushed changes. Do you want to proceed?`,
               default: false,
             },
           ]);
@@ -126,7 +138,7 @@ export async function pushCommand(args: Sinc.PushCmdArgs): Promise<void> {
           }
         }
 
-        const newUpdateSet = await AppUtils.createAndAssignUpdateSet(updateSet);
+        const newUpdateSet = await AppUtils.createAndAssignUpdateSet(resolvedUpdateSet);
         logger.debug(
           `New Update Set Created(${newUpdateSet.name}) sys_id:${newUpdateSet.id}`,
         );

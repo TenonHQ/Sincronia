@@ -4,6 +4,12 @@ import { defaultClient, unwrapSNResponse, unwrapTableAPIFirstItem } from "./snCl
 import { logger } from "./Logger";
 import { setLogLevel } from "./commands";
 import chalk from "chalk";
+import {
+  createClickUpApi,
+  parseClickUpIdentifier,
+  formatTaskSummary,
+} from "@tenonhq/sincronia-clickup";
+import { refineUpdateSetName } from "./clickupCommands";
 
 interface UpdateSetDetails {
   sys_id: string;
@@ -176,10 +182,20 @@ export async function showCurrentUpdateSetCommand(args: any): Promise<void> {
  */
 export async function createUpdateSetCommand(args: any): Promise<void> {
   setLogLevel(args);
-  
+
   try {
     const client = defaultClient();
-    
+
+    // If --clickup is provided, fetch task data and generate name/description
+    if (args.clickup && !args.name) {
+      var clickupResult = await resolveClickUpTaskForUpdateSet(args.clickup);
+      args.name = clickupResult.name;
+      if (!args.description) {
+        args.description = clickupResult.description;
+      }
+      args._clickupTaskId = clickupResult.taskId;
+    }
+
     // Get update set details from user
     const { name, description, scope } = await promptForUpdateSetDetails(args);
     
@@ -221,7 +237,33 @@ export async function createUpdateSetCommand(args: any): Promise<void> {
     if (scope) {
       logger.info(`Scope: ${scope}`);
     }
-    
+
+    // If created from a ClickUp task, offer to post a comment back
+    if (args._clickupTaskId) {
+      try {
+        var token = process.env.CLICKUP_API_TOKEN;
+        if (token) {
+          var commentAnswer = await inquirer.prompt([{
+            type: "confirm",
+            name: "postComment",
+            message: "Post a comment to the ClickUp task linking this update set?",
+            default: true,
+          }]);
+          if (commentAnswer.postComment) {
+            var clickupApi = createClickUpApi({ token: token });
+            await clickupApi.addComment({
+              taskId: args._clickupTaskId,
+              commentText: "ServiceNow Update Set created: " + name + " (ID: " + updateSetSysId + ")",
+            });
+            logger.success(chalk.green("✓ Comment posted to ClickUp task"));
+          }
+        }
+      } catch (commentErr) {
+        logger.warn("Could not post comment to ClickUp task");
+        if (commentErr instanceof Error) logger.debug(commentErr.message);
+      }
+    }
+
   } catch (e) {
     logger.error("Failed to create update set");
     if (e instanceof Error) logger.error(e.message);
@@ -609,6 +651,68 @@ async function selectUpdateSet(
 /**
  * Helper function to format date
  */
+/**
+ * Resolves a ClickUp task identifier into an update set name and description.
+ * Uses Claude CLI for name refinement with convention-based fallback.
+ */
+async function resolveClickUpTaskForUpdateSet(
+  clickupIdentifier: string
+): Promise<{ name: string; description: string; taskId: string }> {
+  var token = process.env.CLICKUP_API_TOKEN;
+  if (!token || token === "") {
+    throw new Error(
+      "CLICKUP_API_TOKEN not set. Run 'sinc clickup setup' or add it to your .env file."
+    );
+  }
+
+  var parsed = parseClickUpIdentifier(clickupIdentifier);
+  logger.info("Fetching ClickUp task: " + parsed.taskId + "...");
+
+  var api = createClickUpApi({ token: token });
+  var task = await api.getTask({ taskId: parsed.taskId });
+
+  logger.success(chalk.green('✓ Found: "' + task.name + '"'));
+  logger.info("");
+
+  // Generate update set name via Claude CLI (with fallback)
+  logger.info("Generating update set name...");
+  var suggestedName = refineUpdateSetName({
+    taskName: task.name,
+    taskId: task.id,
+    taskDescription: task.description || "",
+  });
+  logger.success(chalk.green('✓ Suggested name: "' + suggestedName + '"'));
+
+  // Generate description from task summary
+  var suggestedDescription = formatTaskSummary({ task: task });
+
+  // Let user confirm or edit
+  var confirmAnswers = await inquirer.prompt([
+    {
+      type: "input",
+      name: "name",
+      message: "Update set name:",
+      default: suggestedName,
+      validate: function (input: string) {
+        if (!input || input.trim() === "") return "Name is required";
+        return true;
+      },
+    },
+    {
+      type: "input",
+      name: "description",
+      message: "Description:",
+      default: suggestedDescription,
+    },
+  ]);
+
+  return {
+    name: confirmAnswers.name,
+    description: confirmAnswers.description,
+    taskId: parsed.taskId,
+  };
+}
+
 function formatDate(dateString: any): string {
   try {
     const actualDateString = typeof dateString === 'object' && dateString !== null ? dateString.display_value || dateString.value : dateString;

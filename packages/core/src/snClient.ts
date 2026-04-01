@@ -159,12 +159,16 @@ export const snClient = (
     return client.get<ScopeResponse>(endpoint);
   };
 
-  const createUpdateSet = (updateSetName: string, scopeSysId?: string, description?: string) => {
+  const createUpdateSet = (
+    updateSetName: string,
+    scopeSysId?: string,
+    description?: string,
+  ) => {
     const endpoint = `api/now/table/sys_update_set`;
     type UpdateSetCreateResponse = Sinc.SNAPIResponse<SN.UpdateSetRecord>;
     const data: any = {
       name: updateSetName,
-      state: "in progress"
+      state: "in progress",
     };
     if (scopeSysId) {
       data.application = scopeSysId;
@@ -211,14 +215,17 @@ export const snClient = (
     tableOptions: Sinc.ITableOptionsMap,
   ) => {
     const endpoint = `api/x_nuvo_sinc/sinc/bulkDownload`;
-    
-    fileLogger.debug('\n=== getMissingFiles DEBUG ===');
-    fileLogger.debug('Fetching missing files from ServiceNow');
-    fileLogger.debug('Endpoint:', endpoint);
-    fileLogger.debug('Missing files request:', JSON.stringify(missingFiles, null, 2));
-    fileLogger.debug('Table options:', JSON.stringify(tableOptions, null, 2));
-    fileLogger.debug('=== getMissingFiles DEBUG END ===\n');
-    
+
+    fileLogger.debug("\n=== getMissingFiles DEBUG ===");
+    fileLogger.debug("Fetching missing files from ServiceNow");
+    fileLogger.debug("Endpoint:", endpoint);
+    fileLogger.debug(
+      "Missing files request:",
+      JSON.stringify(missingFiles, null, 2),
+    );
+    fileLogger.debug("Table options:", JSON.stringify(tableOptions, null, 2));
+    fileLogger.debug("=== getMissingFiles DEBUG END ===\n");
+
     type TableMap = Sinc.SNAPIResponse<SN.TableMap>;
     return client.post<TableMap>(endpoint, { missingFiles, tableOptions });
   };
@@ -235,33 +242,47 @@ export const snClient = (
       tableOptions = {},
       scopes = {},
     } = config;
-    
-    fileLogger.debug('\n=== getManifest DEBUG ===');
-    fileLogger.debug('Fetching manifest from ServiceNow');
-    fileLogger.debug('Endpoint:', endpoint);
-    fileLogger.debug('Scope:', scope);
-    fileLogger.debug('With files (should download file contents):', withFiles);
-    fileLogger.debug('Request body:', JSON.stringify({
-      includes,
-      excludes,
-      tableOptions,
-      withFiles,
-      getContents: withFiles
-    }, null, 2));
-    fileLogger.debug('IMPORTANT: withFiles=' + withFiles + ' means', withFiles ? 'DOWNLOAD file contents' : 'NO file contents (manifest only)');
-    fileLogger.debug('=== getManifest DEBUG END ===\n');
-    
+
+    fileLogger.debug("\n=== getManifest DEBUG ===");
+    fileLogger.debug("Fetching manifest from ServiceNow");
+    fileLogger.debug("Endpoint:", endpoint);
+    fileLogger.debug("Scope:", scope);
+    fileLogger.debug("With files (should download file contents):", withFiles);
+    fileLogger.debug(
+      "Request body:",
+      JSON.stringify(
+        {
+          includes,
+          excludes,
+          tableOptions,
+          withFiles,
+          getContents: withFiles,
+        },
+        null,
+        2,
+      ),
+    );
+    fileLogger.debug(
+      "IMPORTANT: withFiles=" + withFiles + " means",
+      withFiles ? "DOWNLOAD file contents" : "NO file contents (manifest only)",
+    );
+    fileLogger.debug("=== getManifest DEBUG END ===\n");
+
     type AppResponse = Sinc.SNAPIResponse<SN.AppManifest>;
     return client.post<AppResponse>(endpoint, {
       includes,
       excludes,
       tableOptions,
       withFiles,
-      getContents: withFiles,  // ServiceNow expects getContents, not withFiles
+      getContents: withFiles, // ServiceNow expects getContents, not withFiles
     });
   };
 
-  const changeUpdateSet = (params: { sysId?: string; name?: string; scope?: string }) => {
+  const changeUpdateSet = (params: {
+    sysId?: string;
+    name?: string;
+    scope?: string;
+  }) => {
     const endpoint = "api/cadso/claude/changeUpdateSet";
     type ChangeUpdateSetResponse = { message?: string; error?: string };
     return client.get<ChangeUpdateSetResponse>(endpoint, {
@@ -271,7 +292,12 @@ export const snClient = (
 
   const getCurrentUpdateSet = (scope?: string) => {
     const endpoint = "api/cadso/claude/currentUpdateSet";
-    type CurrentUpdateSetResponse = { message?: string; sysId?: string; name?: string; error?: string };
+    type CurrentUpdateSetResponse = {
+      message?: string;
+      sysId?: string;
+      name?: string;
+      error?: string;
+    };
     const params: any = {};
     if (scope) {
       params.scope = scope;
@@ -283,7 +309,12 @@ export const snClient = (
 
   const changeScope = (scope: string) => {
     const endpoint = "api/cadso/claude/changeScope";
-    type ChangeScopeResponse = { message?: string; sysId?: string; name?: string; error?: string };
+    type ChangeScopeResponse = {
+      message?: string;
+      sysId?: string;
+      name?: string;
+      error?: string;
+    };
     return client.get<ChangeScopeResponse>(endpoint, {
       params: { scope },
     });
@@ -302,6 +333,43 @@ export const snClient = (
       record_sys_id: recordSysId,
       fields,
     });
+  };
+
+  const createRecord = (params: {
+    table: string;
+    fields: Record<string, string>;
+    sys_id?: string;
+    scope?: string;
+    update_set_sys_id?: string;
+  }) => {
+    const endpoint = "api/cadso/claude/createRecord";
+    type CreateRecordResponse = {
+      result: {
+        sys_id: string;
+        table: string;
+        name: string;
+        error?: string;
+      };
+    };
+    return client.post<CreateRecordResponse>(endpoint, params);
+  };
+
+  const deleteRecord = (params: {
+    table: string;
+    sys_id: string;
+    scope?: string;
+  }) => {
+    const endpoint = "api/cadso/claude/deleteRecord";
+    type DeleteRecordResponse = {
+      result: {
+        success: boolean;
+        sys_id: string;
+        table: string;
+        name: string;
+        error?: string;
+      };
+    };
+    return client.post<DeleteRecordResponse>(endpoint, params);
   };
 
   return {
@@ -323,6 +391,8 @@ export const snClient = (
     getCurrentUpdateSet,
     changeScope,
     pushWithUpdateSet,
+    createRecord,
+    deleteRecord,
     client, // Expose the axios client for custom queries
   };
 };
@@ -344,19 +414,23 @@ export const unwrapSNResponse = async <T>(
 ): Promise<T> => {
   try {
     const resp = await clientPromise;
-    
+
     // Debug logging for manifest responses
-    if (resp.config && resp.config.url && resp.config.url.includes('getManifest')) {
-      fileLogger.debug('\n=== unwrapSNResponse DEBUG (Manifest) ===');
-      fileLogger.debug('Response status:', resp.status);
-      fileLogger.debug('Response URL:', resp.config.url);
-      
+    if (
+      resp.config &&
+      resp.config.url &&
+      resp.config.url.includes("getManifest")
+    ) {
+      fileLogger.debug("\n=== unwrapSNResponse DEBUG (Manifest) ===");
+      fileLogger.debug("Response status:", resp.status);
+      fileLogger.debug("Response URL:", resp.config.url);
+
       // Check structure of manifest response
       const result: any = resp.data.result;
       if (result && result.tables) {
         const tables = result.tables;
-        fileLogger.debug('Tables in manifest:', Object.keys(tables));
-        
+        fileLogger.debug("Tables in manifest:", Object.keys(tables));
+
         // Sample first table and record to see file structure
         const firstTable = Object.keys(tables)[0];
         if (firstTable) {
@@ -370,26 +444,30 @@ export const unwrapSNResponse = async <T>(
               files: record.files.map((f: any) => ({
                 name: f.name,
                 type: f.type,
-                hasContent: !!f.content
-              }))
+                hasContent: !!f.content,
+              })),
             });
           }
         }
       }
-      fileLogger.debug('=== unwrapSNResponse DEBUG END ===\n');
+      fileLogger.debug("=== unwrapSNResponse DEBUG END ===\n");
     }
-    
+
     // Debug logging for bulkDownload responses
-    if (resp.config && resp.config.url && resp.config.url.includes('bulkDownload')) {
-      fileLogger.debug('\n=== unwrapSNResponse DEBUG (BulkDownload) ===');
-      fileLogger.debug('Response status:', resp.status);
-      fileLogger.debug('Response URL:', resp.config.url);
-      
+    if (
+      resp.config &&
+      resp.config.url &&
+      resp.config.url.includes("bulkDownload")
+    ) {
+      fileLogger.debug("\n=== unwrapSNResponse DEBUG (BulkDownload) ===");
+      fileLogger.debug("Response status:", resp.status);
+      fileLogger.debug("Response URL:", resp.config.url);
+
       const result: any = resp.data.result;
       if (result) {
         const tables = result;
-        fileLogger.debug('Tables in bulk download:', Object.keys(tables || {}));
-        
+        fileLogger.debug("Tables in bulk download:", Object.keys(tables || {}));
+
         // Log details of files received
         if (tables) {
           Object.keys(tables).forEach((tableName: string) => {
@@ -401,7 +479,11 @@ export const unwrapSNResponse = async <T>(
                 fileLogger.debug(`  Record: ${recordName}`);
                 if (record && record.files) {
                   record.files.forEach((file: any) => {
-                    fileLogger.debug(`    File: ${file.name}.${file.type} (content: ${file.content ? file.content.length + ' chars' : 'null'})`);
+                    fileLogger.debug(
+                      `    File: ${file.name}.${file.type} (content: ${
+                        file.content ? file.content.length + " chars" : "null"
+                      })`,
+                    );
                   });
                 }
               });
@@ -409,9 +491,9 @@ export const unwrapSNResponse = async <T>(
           });
         }
       }
-      fileLogger.debug('=== unwrapSNResponse DEBUG END ===\n');
+      fileLogger.debug("=== unwrapSNResponse DEBUG END ===\n");
     }
-    
+
     return resp.data.result;
   } catch (e) {
     let message;

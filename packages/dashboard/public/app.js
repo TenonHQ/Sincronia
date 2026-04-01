@@ -1,19 +1,30 @@
-let scopesData = [];
-let updateSetsCache = {};
-let modalScopeKey = null;
-let modalScopeSysId = null;
+// --- State ---
+
+var scopesData = [];
+var updateSetsCache = {};
+var modalScopeKey = null;
+var modalScopeSysId = null;
+
+// ClickUp state
+var activeTask = null;
+var clickupTasks = {};
+var clickupConfigured = false;
+var availableStatuses = [];
+var activeStatuses = ["in progress"];
+var sidebarOpen = false;
+var tasksLoading = false;
 
 // --- API helpers ---
 
 async function api(method, path, body) {
-  const opts = {
-    method,
+  var opts = {
+    method: method,
     headers: { "Content-Type": "application/json" },
   };
   if (body) opts.body = JSON.stringify(body);
-  const resp = await fetch(path, opts);
+  var resp = await fetch(path, opts);
   if (!resp.ok) {
-    const err = await resp.json().catch(function () {
+    var err = await resp.json().catch(function () {
       return { error: "Request failed" };
     });
     throw new Error(err.error || "Request failed");
@@ -57,7 +68,7 @@ async function loadConfig() {
   }
 }
 
-// --- Render ---
+// --- Render Scopes ---
 
 function renderScopes() {
   var grid = document.getElementById("scope-grid");
@@ -70,6 +81,28 @@ function renderScopes() {
 
     var selectedName = scope.selected_update_set ? scope.selected_update_set.name : "None";
     var selectedId = scope.selected_update_set ? scope.selected_update_set.sys_id : "";
+
+    // Build activate button HTML if there's an active task
+    var activateHtml = "";
+    if (activeTask && scope.sys_id) {
+      var scopeActivated = activeTask.scopes && activeTask.scopes[scope.scope];
+      if (scopeActivated) {
+        activateHtml =
+          '<button class="btn-activate activated" disabled>Activated</button>';
+      } else {
+        activateHtml =
+          '<button class="btn-activate" onclick="activateScope(\'' +
+          scope.scope + "', '" + scope.sys_id +
+          "')\">Activate CU-" + activeTask.taskId + "</button>";
+      }
+    }
+
+    // Build task badge if scope is activated for current task
+    var taskBadgeHtml = "";
+    if (activeTask && activeTask.scopes && activeTask.scopes[scope.scope]) {
+      taskBadgeHtml =
+        '<div class="scope-task-badge">CU-' + activeTask.taskId + "</div>";
+    }
 
     card.innerHTML =
       '<div class="scope-header">' +
@@ -85,12 +118,12 @@ function renderScopes() {
         '<button class="btn btn-primary" onclick="openCreateModal(\'' + scope.scope + "', '" + scope.sys_id + "')\" " + (!scope.sys_id ? "disabled" : "") + ">New</button>" +
         '<button class="btn btn-danger" id="close-btn-' + scope.scope + '" onclick="closeUpdateSet(\'' + scope.scope + '\')" disabled>Close</button>' +
         '<button class="btn btn-clear" id="clear-btn-' + scope.scope + '" onclick="clearSelection(\'' + scope.scope + '\')" ' + (!scope.selected_update_set ? "disabled" : "") + ">Clear</button>" +
+        activateHtml +
       "</div>" +
-      (scope.selected_update_set ? '<div class="selected-badge">Active for push</div>' : "");
+      (scope.selected_update_set ? '<div class="selected-badge">Active for push</div>' : "") +
+      taskBadgeHtml;
 
     grid.appendChild(card);
-
-    // Load update sets for this scope
     loadUpdateSets(scope.scope, selectedId);
   });
 }
@@ -111,18 +144,17 @@ async function loadUpdateSets(scope, selectedId) {
       select.appendChild(option);
     });
 
-    // Enable/disable close button
     var closeBtn = document.getElementById("close-btn-" + scope);
     if (closeBtn) closeBtn.disabled = !selectedId;
   } catch (e) {
-    var select = document.getElementById("select-" + scope);
-    if (select) {
-      select.innerHTML = '<option value="" disabled>Failed to load</option>';
+    var selectEl = document.getElementById("select-" + scope);
+    if (selectEl) {
+      selectEl.innerHTML = '<option value="" disabled>Failed to load</option>';
     }
   }
 }
 
-// --- Actions ---
+// --- Update Set Actions ---
 
 async function onSelectChange(scope) {
   var select = document.getElementById("select-" + scope);
@@ -136,13 +168,11 @@ async function onSelectChange(scope) {
       update_set_name: sysId ? name : null,
     });
 
-    // Update local state
     var scopeData = scopesData.find(function (s) { return s.scope === scope; });
     if (scopeData) {
       scopeData.selected_update_set = sysId ? { sys_id: sysId, name: name } : null;
     }
 
-    // Update card styling
     var card = document.getElementById("card-" + scope);
     if (card) {
       if (sysId) {
@@ -152,13 +182,11 @@ async function onSelectChange(scope) {
       }
     }
 
-    // Update buttons
     var closeBtn = document.getElementById("close-btn-" + scope);
     if (closeBtn) closeBtn.disabled = !sysId;
     var clearBtn = document.getElementById("clear-btn-" + scope);
     if (clearBtn) clearBtn.disabled = !sysId;
 
-    // Update badge
     var badge = card ? card.querySelector(".selected-badge") : null;
     if (sysId && !badge) {
       var b = document.createElement("div");
@@ -192,7 +220,6 @@ async function closeUpdateSet(scope) {
   try {
     await api("PATCH", "/api/update-set/" + sysId + "/close");
 
-    // Clear selection and reload
     await api("POST", "/api/select-update-set", {
       scope: scope,
       update_set_sys_id: "",
@@ -258,7 +285,6 @@ async function createUpdateSet() {
 
     var newSysId = data.update_set.sys_id;
 
-    // Auto-select the new update set
     await api("POST", "/api/select-update-set", {
       scope: modalScopeKey,
       update_set_sys_id: newSysId,
@@ -273,10 +299,8 @@ async function createUpdateSet() {
     toast("Created: " + name);
     closeModal();
 
-    // Reload that scope's update sets
     loadUpdateSets(modalScopeKey, newSysId);
 
-    // Update card
     var card = document.getElementById("card-" + modalScopeKey);
     if (card) {
       card.classList.add("has-selection");
@@ -300,13 +324,394 @@ async function createUpdateSet() {
   }
 }
 
+// =============================================================================
+// ClickUp Sidebar
+// =============================================================================
+
+// --- Sidebar toggle ---
+
+function toggleSidebar() {
+  var sidebar = document.getElementById("task-sidebar");
+  var toggleBtn = document.getElementById("sidebar-toggle");
+
+  sidebarOpen = !sidebarOpen;
+  if (sidebarOpen) {
+    sidebar.classList.remove("collapsed");
+    toggleBtn.classList.add("active");
+    if (Object.keys(clickupTasks).length === 0 && activeStatuses.length > 0) {
+      loadClickUpTasks();
+    }
+  } else {
+    sidebar.classList.add("collapsed");
+    toggleBtn.classList.remove("active");
+  }
+}
+
+// --- Load ClickUp status ---
+
+async function loadClickUpStatus() {
+  try {
+    var data = await api("GET", "/api/clickup/status");
+    clickupConfigured = data.configured;
+
+    if (clickupConfigured) {
+      document.getElementById("sidebar-toggle").style.display = "";
+    }
+
+    if (data.activeTask) {
+      activeTask = data.activeTask;
+      renderActiveTaskBanner();
+      renderActiveTaskChip();
+      renderScopes();
+    }
+  } catch (e) {
+    // ClickUp not available — just hide the button
+  }
+}
+
+// --- Load ClickUp tasks ---
+
+async function loadClickUpTasks() {
+  if (tasksLoading) return;
+  tasksLoading = true;
+
+  var taskList = document.getElementById("task-list");
+  taskList.innerHTML = '<div class="sidebar-loading">Loading tasks...</div>';
+
+  try {
+    var statusParam = activeStatuses.join(",");
+    var data = await api("GET", "/api/clickup/tasks?statuses=" + encodeURIComponent(statusParam));
+    clickupTasks = data.byStatus || {};
+
+    // Merge discovered statuses with what we know
+    var newStatuses = data.statuses || [];
+    newStatuses.forEach(function (s) {
+      if (availableStatuses.indexOf(s) === -1) {
+        availableStatuses.push(s);
+      }
+    });
+
+    renderStatusFilters();
+    renderTaskList();
+  } catch (e) {
+    taskList.innerHTML =
+      '<div class="sidebar-loading">Failed to load: ' + e.message + "</div>";
+  } finally {
+    tasksLoading = false;
+  }
+}
+
+// --- Render status filters ---
+
+function renderStatusFilters() {
+  var container = document.getElementById("status-filters");
+
+  // Ensure common statuses are always available
+  var defaults = ["in progress", "open", "review", "to do"];
+  defaults.forEach(function (s) {
+    if (availableStatuses.indexOf(s) === -1) {
+      availableStatuses.push(s);
+    }
+  });
+
+  container.innerHTML = "";
+  availableStatuses.forEach(function (status) {
+    var chip = document.createElement("button");
+    chip.className = "filter-chip" + (activeStatuses.indexOf(status) !== -1 ? " active" : "");
+    chip.textContent = status;
+    chip.onclick = function () {
+      var idx = activeStatuses.indexOf(status);
+      if (idx !== -1) {
+        activeStatuses.splice(idx, 1);
+      } else {
+        activeStatuses.push(status);
+      }
+      chip.classList.toggle("active");
+      loadClickUpTasks();
+    };
+    container.appendChild(chip);
+  });
+}
+
+// --- Render task list ---
+
+function renderTaskList() {
+  var container = document.getElementById("task-list");
+  container.innerHTML = "";
+
+  var statusKeys = Object.keys(clickupTasks);
+  if (statusKeys.length === 0) {
+    container.innerHTML = '<div class="sidebar-loading">No tasks found</div>';
+    return;
+  }
+
+  statusKeys.forEach(function (status) {
+    var tasks = clickupTasks[status];
+    if (!tasks || tasks.length === 0) return;
+
+    var group = document.createElement("div");
+    group.className = "task-status-group";
+
+    var label = document.createElement("div");
+    label.className = "task-status-label";
+    label.textContent = status + " (" + tasks.length + ")";
+    group.appendChild(label);
+
+    tasks.forEach(function (task) {
+      var card = document.createElement("div");
+      card.className = "task-card" + (activeTask && activeTask.taskId === task.id ? " selected" : "");
+      card.onclick = function () {
+        selectTask(task);
+      };
+
+      var priorityHtml = "";
+      if (task.priority) {
+        var colors = { urgent: "#f50057", high: "#ff7043", normal: "#ffab40", low: "#29b6f6" };
+        var color = colors[task.priority] || "#888";
+        priorityHtml = '<span class="task-priority-dot" style="background:' + color + '"></span>';
+      }
+
+      card.innerHTML =
+        '<div class="task-card-name">' + escapeHtml(task.name) + "</div>" +
+        '<div class="task-card-meta">' +
+          '<span class="task-card-id">' + (task.customId || task.id) + "</span>" +
+          priorityHtml +
+        "</div>";
+
+      group.appendChild(card);
+    });
+
+    container.appendChild(group);
+  });
+}
+
+// --- Select task ---
+
+async function selectTask(task) {
+  // If already selected, deselect
+  if (activeTask && activeTask.taskId === task.id) {
+    await deselectTask();
+    return;
+  }
+
+  try {
+    var data = await api("POST", "/api/clickup/select-task", {
+      taskId: task.id,
+      taskName: task.name,
+      taskDescription: task.description || "",
+      taskUrl: task.url || "",
+    });
+
+    activeTask = data.activeTask;
+    toast("Task selected: " + task.name);
+
+    renderActiveTaskBanner();
+    renderActiveTaskChip();
+    renderTaskList();
+    renderScopes();
+
+    // Auto-activate update sets for all scopes
+    autoActivateAllScopes();
+  } catch (e) {
+    toast("Failed to select task: " + e.message, "error");
+  }
+}
+
+// --- Deselect task ---
+
+async function deselectTask() {
+  if (!confirm("Deselect active task? Update sets will remain but won't auto-activate.")) return;
+
+  try {
+    await api("POST", "/api/clickup/deselect-task");
+    activeTask = null;
+    toast("Task deselected");
+
+    renderActiveTaskBanner();
+    renderActiveTaskChip();
+    renderTaskList();
+    renderScopes();
+  } catch (e) {
+    toast("Failed to deselect: " + e.message, "error");
+  }
+}
+
+// --- Render active task banner (sidebar) ---
+
+function renderActiveTaskBanner() {
+  var banner = document.getElementById("active-task-banner");
+  if (!activeTask) {
+    banner.style.display = "none";
+    banner.innerHTML = "";
+    return;
+  }
+
+  banner.style.display = "";
+
+  var scopeKeys = activeTask.scopes ? Object.keys(activeTask.scopes) : [];
+  var scopeText = scopeKeys.length > 0
+    ? "<span>" + scopeKeys.join(", ") + "</span>"
+    : "None activated yet";
+
+  banner.innerHTML =
+    '<div class="active-task-name">' + escapeHtml(activeTask.taskName) + "</div>" +
+    '<div class="active-task-us-name">' + escapeHtml(activeTask.updateSetName) + "</div>" +
+    '<div class="active-task-scopes">Scopes: ' + scopeText + "</div>" +
+    '<button class="btn-deselect" onclick="deselectTask()">Deselect</button>';
+}
+
+// --- Render active task chip (header) ---
+
+function renderActiveTaskChip() {
+  var chip = document.getElementById("active-task-chip");
+  if (!activeTask) {
+    chip.style.display = "none";
+    chip.textContent = "";
+    return;
+  }
+
+  chip.style.display = "";
+  chip.textContent = "CU-" + activeTask.taskId;
+  chip.title = activeTask.updateSetName;
+  chip.onclick = function () {
+    if (!sidebarOpen) toggleSidebar();
+  };
+}
+
+// --- Activate scope for current task ---
+
+async function activateScope(scope, scopeSysId) {
+  if (!activeTask) {
+    toast("No active task selected", "error");
+    return;
+  }
+
+  // Find and disable the activate button
+  var card = document.getElementById("card-" + scope);
+  var activateBtn = card ? card.querySelector(".btn-activate") : null;
+  if (activateBtn) {
+    activateBtn.disabled = true;
+    activateBtn.textContent = "Activating...";
+  }
+
+  try {
+    var data = await api("POST", "/api/clickup/activate-scope", {
+      scope: scope,
+      scope_sys_id: scopeSysId,
+    });
+
+    var us = data.update_set;
+    var verb = data.created ? "Created" : "Found";
+    toast(verb + " update set for " + scope + ": " + us.name);
+
+    // Update activeTask scopes
+    if (!activeTask.scopes) activeTask.scopes = {};
+    activeTask.scopes[scope] = { sys_id: us.sys_id, name: us.name };
+
+    // Update scopesData so the dropdown reflects the new selection
+    var scopeData = scopesData.find(function (s) { return s.scope === scope; });
+    if (scopeData) {
+      scopeData.selected_update_set = { sys_id: us.sys_id, name: us.name };
+    }
+
+    // Re-render to update all UI elements
+    renderActiveTaskBanner();
+    renderScopes();
+  } catch (e) {
+    toast("Failed to activate scope: " + e.message, "error");
+    if (activateBtn) {
+      activateBtn.disabled = false;
+      activateBtn.textContent = "Activate CU-" + activeTask.taskId;
+    }
+  }
+}
+
+// --- Auto-activate all scopes ---
+
+async function autoActivateAllScopes() {
+  if (!activeTask) return;
+
+  // Disable all activate buttons and show progress
+  scopesData.forEach(function (scope) {
+    var card = document.getElementById("card-" + scope.scope);
+    var btn = card ? card.querySelector(".btn-activate") : null;
+    if (btn && !btn.classList.contains("activated")) {
+      btn.disabled = true;
+      btn.textContent = "Activating...";
+    }
+  });
+
+  try {
+    var data = await api("POST", "/api/clickup/activate-all-scopes");
+    var results = data.results || [];
+
+    // Update activeTask from server response
+    if (data.activeTask) {
+      activeTask = data.activeTask;
+    }
+
+    var created = 0;
+    var found = 0;
+    var errors = 0;
+
+    results.forEach(function (r) {
+      if (r.error) {
+        errors++;
+        return;
+      }
+      if (r.created) {
+        created++;
+      } else {
+        found++;
+      }
+
+      // Update scopesData
+      var scopeData = scopesData.find(function (s) { return s.scope === r.scope; });
+      if (scopeData) {
+        scopeData.selected_update_set = { sys_id: r.update_set.sys_id, name: r.update_set.name };
+      }
+    });
+
+    var parts = [];
+    if (created > 0) parts.push(created + " created");
+    if (found > 0) parts.push(found + " found");
+    if (errors > 0) parts.push(errors + " failed");
+    toast("Update sets: " + parts.join(", "));
+
+    renderActiveTaskBanner();
+    renderScopes();
+  } catch (e) {
+    toast("Failed to auto-activate scopes: " + e.message, "error");
+    renderScopes();
+  }
+}
+
+// --- Utility ---
+
+function escapeHtml(str) {
+  var div = document.createElement("div");
+  div.appendChild(document.createTextNode(str));
+  return div.innerHTML;
+}
+
 // --- Keyboard ---
 
 document.addEventListener("keydown", function (e) {
-  if (e.key === "Escape") closeModal();
+  if (e.key === "Escape") {
+    closeModal();
+    if (sidebarOpen) toggleSidebar();
+  }
 });
 
 // --- Init ---
 
 loadConfig();
 loadScopes();
+loadClickUpStatus();
+
+// Wire up sidebar toggle and close buttons
+document.getElementById("sidebar-toggle").addEventListener("click", toggleSidebar);
+document.getElementById("sidebar-close").addEventListener("click", toggleSidebar);
+
+// Render initial status filter chips
+renderStatusFilters();
