@@ -1,6 +1,6 @@
 {
   "name": "@tenonhq/sincronia-core",
-  "version": "0.0.61",
+  "version": "0.0.63",
   "description": "Next-gen file syncer",
   "license": "GPL-3.0",
   "main": "./dist/index.js",
@@ -8,7 +8,8 @@
   "private": false,
   "scripts": {
     "copy:skills": "mkdir -p skills && cp ../../skills/*.md ./skills/",
-    "prepack": "npm run copy:skills && tsc",
+    "prepack": "npm run copy:skills && tsc && npm run validate-dist",
+    "validate-dist": "node -e \"var fs=require('fs');if(!fs.existsSync('./dist/index.js')){console.error('FATAL: dist/index.js missing after build');process.exit(1)}\"",
     "test": "jest --ci --reporters=jest-junit --reporters=default --coverage --coverageReporters=cobertura --coverageReporters=html",
     "version:bump": "node ./../../Scripts/bump-version.js ./package.json",
     "postpublish": "npm run version:bump"

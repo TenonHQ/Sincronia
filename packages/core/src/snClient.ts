@@ -76,13 +76,13 @@ export const snClient = (
   );
 
   const getAppList = () => {
-    const endpoint = "api/x_nuvo_sinc/sinc/getAppList";
+    const endpoint = "api/sinc/sinc/getAppList";
     type AppListResponse = Sinc.SNAPIResponse<SN.App[]>;
     return client.get<AppListResponse>(endpoint);
   };
 
   const updateATFfile = (contents: string, sysId: string) => {
-    const endpoint = "api/x_nuvo_sinc/pushATFfile";
+    const endpoint = "api/sinc/sinc/pushATFfile";
     try {
       return client.post(endpoint, { file: contents, sys_id: sysId });
     } catch (e) {
@@ -154,7 +154,7 @@ export const snClient = (
   };
 
   const getCurrentScope = () => {
-    const endpoint = "api/x_nuvo_sinc/sinc/getCurrentScope";
+    const endpoint = "api/sinc/sinc/getCurrentScope";
     type ScopeResponse = Sinc.SNAPIResponse<SN.ScopeObj>;
     return client.get<ScopeResponse>(endpoint);
   };
@@ -214,7 +214,7 @@ export const snClient = (
     missingFiles: SN.MissingFileTableMap,
     tableOptions: Sinc.ITableOptionsMap,
   ) => {
-    const endpoint = `api/x_nuvo_sinc/sinc/bulkDownload`;
+    const endpoint = `api/sinc/sinc/bulkDownload`;
 
     fileLogger.debug("\n=== getMissingFiles DEBUG ===");
     fileLogger.debug("Fetching missing files from ServiceNow");
@@ -235,7 +235,7 @@ export const snClient = (
     config: Sinc.ScopedConfig,
     withFiles = false,
   ) => {
-    const endpoint = `api/x_nuvo_sinc/sinc/getManifest/${scope}`;
+    const endpoint = `api/sinc/sinc/getManifest/${scope}`;
     const {
       includes = {},
       excludes = {},

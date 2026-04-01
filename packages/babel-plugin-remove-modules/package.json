@@ -1,6 +1,6 @@
 {
   "name": "@tenonhq/sincronia-babel-plugin-remove-modules",
-  "version": "0.0.3",
+  "version": "0.0.5",
   "description": "Babel plugin that removes imports and exports from code",
   "main": "./dist/index.js",
   "scripts": {
@@ -26,6 +26,9 @@
     "@tenonhq/sincronia-types": "^0.0.6",
     "@types/babel__core": "^7.20.2"
   },
+  "files": [
+    "dist"
+  ],
   "publishConfig": {
     "access": "public"
   },

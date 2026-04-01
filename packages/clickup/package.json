@@ -1,6 +1,6 @@
 {
   "name": "@tenonhq/sincronia-clickup",
-  "version": "0.0.2",
+  "version": "0.0.4",
   "description": "ClickUp API v2 client for Sincronia — task management, update set integration",
   "main": "./dist/index.js",
   "scripts": {

@@ -1,6 +1,6 @@
 {
   "name": "@tenonhq/sincronia-webpack-plugin",
-  "version": "0.0.3",
+  "version": "0.0.5",
   "description": "Webpack plugin for Sincronia",
   "main": "./dist/index.js",
   "repository": {
