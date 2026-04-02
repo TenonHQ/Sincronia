@@ -25,28 +25,43 @@ const CLICKUP_TOKEN = process.env.CLICKUP_API_TOKEN || "";
 const CLICKUP_TEAM_ID = process.env.CLICKUP_TEAM_ID || "";
 
 // Rate limiting for ServiceNow API calls (matches core snClient 20 RPS)
-let snRequestCount = 0;
-let snRequestResetTime = Date.now();
-const MAX_SN_RPS = 20;
+// Promise-based queue: delays requests when approaching the limit instead of throwing
+var snRequestTimestamps = [];
+var MAX_SN_RPS = 20;
+var SN_WINDOW_MS = 1000;
 
-function checkSNRateLimit() {
-  const now = Date.now();
-  if (now - snRequestResetTime > 1000) {
-    snRequestCount = 0;
-    snRequestResetTime = now;
+function waitForRateLimit() {
+  var now = Date.now();
+  // Purge timestamps older than the window
+  snRequestTimestamps = snRequestTimestamps.filter(function (ts) {
+    return now - ts < SN_WINDOW_MS;
+  });
+
+  if (snRequestTimestamps.length < MAX_SN_RPS) {
+    snRequestTimestamps.push(now);
+    return Promise.resolve();
   }
-  if (snRequestCount >= MAX_SN_RPS) {
-    throw new Error("Rate limit exceeded for ServiceNow API calls");
-  }
-  snRequestCount++;
+
+  // Calculate how long to wait until the oldest request falls out of the window
+  var oldest = snRequestTimestamps[0];
+  var delayMs = SN_WINDOW_MS - (now - oldest) + 10; // +10ms buffer
+  return new Promise(function (resolve) {
+    setTimeout(function () {
+      snRequestTimestamps = snRequestTimestamps.filter(function (ts) {
+        return Date.now() - ts < SN_WINDOW_MS;
+      });
+      snRequestTimestamps.push(Date.now());
+      resolve();
+    }, delayMs);
+  });
 }
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-// ServiceNow API helper
-function snApi(method, endpoint, data) {
-  checkSNRateLimit();
+// ServiceNow API helper — waits for rate limit clearance before firing
+async function snApi(method, endpoint, data) {
+  await waitForRateLimit();
   return axios({
     method,
     url: `${BASE_URL}/${endpoint}`,

@@ -703,6 +703,27 @@ document.addEventListener("keydown", function (e) {
   }
 });
 
+// --- Refresh ---
+
+async function refreshDashboard() {
+  var btn = document.getElementById("refresh-btn");
+  btn.disabled = true;
+  btn.textContent = "Refreshing...";
+
+  try {
+    await loadScopes();
+    if (clickupConfigured && activeTask) {
+      await loadClickUpStatus();
+    }
+    toast("Dashboard refreshed");
+  } catch (e) {
+    toast("Refresh failed: " + e.message, "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Refresh";
+  }
+}
+
 // --- Init ---
 
 loadConfig();
@@ -712,6 +733,7 @@ loadClickUpStatus();
 // Wire up sidebar toggle and close buttons
 document.getElementById("sidebar-toggle").addEventListener("click", toggleSidebar);
 document.getElementById("sidebar-close").addEventListener("click", toggleSidebar);
+document.getElementById("refresh-btn").addEventListener("click", refreshDashboard);
 
 // Render initial status filter chips
 renderStatusFilters();

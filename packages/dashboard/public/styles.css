@@ -64,6 +64,30 @@ header h1 span {
   color: var(--accent);
 }
 
+.btn-refresh {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 14px;
+  background: var(--wood-light);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.btn-refresh:hover {
+  background: var(--wood-grain);
+  border-color: var(--accent);
+}
+
+.btn-refresh:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .instance-badge {
   font-size: 12px;
   color: var(--text-muted);
