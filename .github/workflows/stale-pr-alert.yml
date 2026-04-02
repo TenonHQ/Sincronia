@@ -1,0 +1,119 @@
+name: Stale PR Alert
+
+on:
+  schedule:
+    - cron: '0 14 * * 1-5'
+  workflow_dispatch: {}
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  check-stale-prs:
+    name: Check for Stale PRs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Flag stale pull requests
+        uses: actions/github-script@v7
+        with:
+          script: |
+            var staleDays = 2;
+            var labelName = "needs-attention";
+
+            function businessDaysSince(dateStr) {
+              var updated = new Date(dateStr);
+              var now = new Date();
+              var days = 0;
+              var current = new Date(updated);
+              while (current < now) {
+                current.setDate(current.getDate() + 1);
+                var dow = current.getDay();
+                if (dow !== 0 && dow !== 6) days++;
+              }
+              return days;
+            }
+
+            var prs = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              per_page: 50
+            });
+
+            var stalePrs = prs.data.filter(function(pr) {
+              return businessDaysSince(pr.updated_at) > staleDays;
+            });
+
+            if (stalePrs.length === 0) {
+              core.info("No stale PRs found.");
+              return;
+            }
+
+            // Ensure the needs-attention label exists
+            try {
+              await github.rest.issues.getLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: labelName
+              });
+            } catch (e) {
+              if (e.status === 404) {
+                await github.rest.issues.createLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: labelName,
+                  color: "e11d48",
+                  description: "PR has been inactive and needs author attention"
+                });
+                core.info("Created label: " + labelName);
+              } else {
+                throw e;
+              }
+            }
+
+            var cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
+
+            for (var pr of stalePrs) {
+              var bizDays = businessDaysSince(pr.updated_at);
+              var author = pr.user.login;
+
+              // Check for recent stale comment to avoid duplicates
+              var comments = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                per_page: 10
+              });
+
+              var recentStaleComment = comments.data.some(function(c) {
+                return c.body.indexOf("has been inactive for") !== -1
+                  && new Date(c.created_at) > cutoff;
+              });
+
+              if (recentStaleComment) {
+                core.info("PR #" + pr.number + " already has a recent stale comment, skipping.");
+                continue;
+              }
+
+              // Post stale comment
+              var body = "This PR has been inactive for " + bizDays + " business days. @" + author + " \u2014 please update or close if no longer needed.";
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body: body
+              });
+
+              // Apply needs-attention label
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                labels: [labelName]
+              });
+
+              core.info("Flagged PR #" + pr.number + " (" + bizDays + " business days stale)");
+            }
+
+            core.info("Processed " + stalePrs.length + " stale PR(s).");
