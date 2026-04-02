@@ -1,6 +1,7 @@
 import axios, { AxiosInstance } from "axios";
 import chalk from "chalk";
 import { SchemaOptions, RawSchemaMap, TableField } from "./types";
+import { logger } from "./logger";
 
 function createClient(options: { instance: string; username: string; password: string }): AxiosInstance {
   const baseURL = options.instance.startsWith("https://")
@@ -82,7 +83,7 @@ async function getTableHierarchy(options: {
       return hierarchy;
     }
   } catch (error: any) {
-    console.error(chalk.yellow(`  Warning: Error getting hierarchy for ${tableName}: ${error.message}`));
+    logger.warn("Error getting hierarchy for " + tableName + ": " + error.message);
   }
 
   return [tableName];
@@ -118,7 +119,7 @@ async function getTableFields(options: {
       }));
     }
   } catch (error: any) {
-    console.error(chalk.yellow(`  Warning: Error getting fields for ${tableName}: ${error.message}`));
+    logger.warn("Error getting fields for " + tableName + ": " + error.message);
   }
 
   return [];
@@ -132,27 +133,27 @@ export async function fetchSchema(options: SchemaOptions): Promise<RawSchemaMap>
     password: options.password,
   });
 
-  console.log(chalk.blue(`Fetching table schemas for ${scopes.length} scopes...\n`));
+  logger.info("Fetching table schemas for " + scopes.length + " scopes...");
 
   const schema: RawSchemaMap = {};
 
   for (const scope of scopes) {
-    console.log(chalk.blue(`\nScope: ${scope}`));
+    logger.info("\nScope: " + scope);
 
     const tables = await getTablesForScope({ client, scope });
 
     if (tables.length === 0) {
-      console.log(chalk.yellow(`  No tables found for scope ${scope}`));
+      logger.warn("No tables found for scope " + scope);
       continue;
     }
 
-    console.log(chalk.green(`  Found ${tables.length} tables`));
+    logger.success("Found " + tables.length + " tables");
 
     for (const table of tables) {
-      console.log(`  Processing: ${chalk.cyan(table.name)} (${table.label})`);
+      logger.item("Processing: " + chalk.cyan(table.name) + " (" + table.label + ")");
 
       const hierarchy = await getTableHierarchy({ client, tableName: table.name });
-      console.log(chalk.gray(`    Hierarchy: ${hierarchy.join(" -> ")}`));
+      logger.detail("Hierarchy: " + hierarchy.join(" -> "));
 
       const allFields = new Map<string, TableField>();
 
@@ -176,10 +177,10 @@ export async function fetchSchema(options: SchemaOptions): Promise<RawSchemaMap>
         fields: Array.from(allFields.values()),
       };
 
-      console.log(chalk.gray(`    ${allFields.size} fields (including inherited)`));
+      logger.detail(allFields.size + " fields (including inherited)");
     }
   }
 
-  console.log(chalk.green(`\nFetched schema for ${Object.keys(schema).length} tables across ${scopes.length} scopes`));
+  logger.success("\nFetched schema for " + Object.keys(schema).length + " tables across " + scopes.length + " scopes");
   return schema;
 }

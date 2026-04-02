@@ -125,11 +125,7 @@ export async function deleteRecordCommand(args: TSFIXME): Promise<void> {
       name = nameAnswer.name;
     }
 
-    fileLogger.debug("\n=== deleteRecordCommand DEBUG START ===");
-    fileLogger.debug("Table:", table);
-    fileLogger.debug("Name:", name || "(none)");
-    fileLogger.debug("SysId:", sysId || "(from manifest)");
-    fileLogger.debug("Args:", JSON.stringify(typedArgs));
+    fileLogger.debug("Delete record: table=" + table + " name=" + (name || "n/a") + " sysId=" + (sysId || "from manifest"));
 
     // 1. Resolve scope
     var scope = await resolveScope(typedArgs);
@@ -195,15 +191,7 @@ export async function deleteRecordCommand(args: TSFIXME): Promise<void> {
     }
 
     // 4. Call the delete endpoint
-    logger.info("Deleting record...");
-    fileLogger.debug(
-      "Delete request:",
-      JSON.stringify({
-        table: table,
-        sys_id: sysId,
-        scope: scope,
-      }),
-    );
+    logger.info("Deleting " + table + "/" + (name || sysId) + " from " + (process.env.SN_INSTANCE || "instance") + "...");
 
     var client = defaultClient();
     var deleteResponse = await client.deleteRecord({
@@ -247,7 +235,7 @@ export async function deleteRecordCommand(args: TSFIXME): Promise<void> {
           fs.rmSync(recordDir, { recursive: true, force: true });
           logger.success(chalk.green("Removed: ") + recordDir);
         } else {
-          fileLogger.debug("Local directory not found:", recordDir);
+          fileLogger.debug("Local directory not found: " + recordDir);
         }
 
         // Update manifest
@@ -282,21 +270,15 @@ export async function deleteRecordCommand(args: TSFIXME): Promise<void> {
       logger.info(chalk.yellow("Local files preserved (--keep-local)"));
     }
 
-    fileLogger.debug("=== deleteRecordCommand DEBUG END ===\n");
   } catch (e) {
     logger.error("Failed to delete record");
     if (e instanceof Error) {
       logger.error(e.message);
-      fileLogger.error("Delete record error:", e.message);
       if ((e as TSFIXME).response) {
         var respStatus = (e as TSFIXME).response.status;
         var respData = (e as TSFIXME).response.data;
-        logger.error("Response status: " + respStatus);
-        logger.error("Response data: " + JSON.stringify(respData));
-        fileLogger.error(
-          "Full response data:",
-          JSON.stringify(respData, null, 2),
-        );
+        logger.error("Server responded with status " + respStatus);
+        fileLogger.error("Delete failed — status: " + respStatus + ", response: " + JSON.stringify(respData));
       }
     }
     process.exit(1);

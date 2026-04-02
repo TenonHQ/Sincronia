@@ -31,7 +31,7 @@ async function scopeCheck(
     }
   } catch (e) {
     logger.error(
-      "Failed to check your scope! You may want to make sure your project is configured correctly or run `npx sinc init`",
+      "Scope check failed. Verify your project configuration or run `npx sinc init`",
     );
     // Throw exception to register this as an error
     process.exit(1);
@@ -63,18 +63,13 @@ export async function refreshCommand(
   log: boolean = true,
 ) {
   setLogLevel(args);
-  fileLogger.debug('\n=== refreshCommand DEBUG START ===');
-  fileLogger.debug('Log parameter:', log);
-  fileLogger.debug('Args:', args);
-  
   scopeCheck(async () => {
     try {
       if (!log) setLogLevel({ logLevel: "warn" });
-      fileLogger.debug('Calling syncManifest (no scope parameter - will sync all)');
+      fileLogger.debug("Syncing manifest from instance");
       await AppUtils.syncManifest();
-      logger.success("Refresh complete! ✅");
+      logger.success("Refresh complete!");
       setLogLevel(args);
-      fileLogger.debug('=== refreshCommand DEBUG END ===\n');
     } catch (e) {
       throw e;
     }
@@ -90,12 +85,13 @@ export async function pushCommand(args: Sinc.PushCmdArgs): Promise<void> {
       else encodedPaths = await gitDiffToEncodedPaths(diff);
 
       const fileList = await AppUtils.getAppFileList(encodedPaths);
-      logger.info(`${fileList.length} files to push.`);
+      const instance = process.env.SN_INSTANCE || "unknown";
+      logger.info(fileList.length + " files to push to " + instance);
 
       if (!skipPrompt) {
         const targetServer = process.env.SN_INSTANCE;
         if (!targetServer) {
-          logger.error("No server configured for push!");
+          logger.error("No SN_INSTANCE configured. Set it in your .env file.");
           return;
         }
         const answers: { confirmed: boolean } = await inquirer.prompt([
@@ -154,9 +150,6 @@ export async function pushCommand(args: Sinc.PushCmdArgs): Promise<void> {
 export async function downloadCommand(args: Sinc.CmdDownloadArgs) {
   setLogLevel(args);
   try {
-    fileLogger.debug('\n=== downloadCommand DEBUG START ===');
-    fileLogger.debug('Command arguments:', args);
-    
     let answers: { confirmed: boolean } = await inquirer.prompt([
       {
         type: "confirm",
@@ -168,44 +161,27 @@ export async function downloadCommand(args: Sinc.CmdDownloadArgs) {
     if (!answers["confirmed"]) {
       return;
     }
-    logger.info("Downloading manifest and files...");
-    fileLogger.debug('Scope to download:', args.scope);
-    fileLogger.debug('Getting manifest WITH FILES (third param = true)');
-    
+    const instance = process.env.SN_INSTANCE || "unknown";
+    logger.info("Downloading from " + instance + " (scope: " + (args.scope || "default") + ")...");
+
     const client = defaultClient();
     const config = ConfigManager.getConfig();
-    
-    fileLogger.debug('Calling getManifest with withFiles=true');
+
     const man = await unwrapSNResponse(
       client.getManifest(args.scope, config, true),
     );
-    
-    fileLogger.debug('Manifest received from ServiceNow');
-    fileLogger.debug('Manifest has', Object.keys(man.tables).length, 'tables');
-    
-    // Check for metadata files in the manifest
-    let metadataFileCount = 0;
-    Object.keys(man.tables).forEach(tableName => {
-      const table = man.tables[tableName];
-      Object.keys(table.records).forEach(recordName => {
-        const record = table.records[recordName];
-        const metaFile = record.files.find((f: any) => 
-          f.name.toLowerCase().includes('metadata') || 
-          f.name.toLowerCase().includes('meta')
-        );
-        if (metaFile) {
-          metadataFileCount++;
-          fileLogger.debug(`Found metadata file in ${tableName}/${recordName}:`, metaFile);
-        }
-      });
+
+    const tableCount = Object.keys(man.tables).length;
+    let recordCount = 0;
+    Object.keys(man.tables).forEach(function(tableName) {
+      recordCount += Object.keys(man.tables[tableName].records).length;
     });
-    fileLogger.debug('Total metadata files found in manifest:', metadataFileCount);
-    
-    logger.info("Creating local files from manifest...");
-    fileLogger.debug('Calling processManifest with forceWrite=true');
+    logger.info("Received " + tableCount + " tables, " + recordCount + " records");
+    fileLogger.debug("Download manifest: " + tableCount + " tables, " + recordCount + " records");
+
+    logger.info("Writing files to disk...");
     await AppUtils.processManifest(man, true);
-    logger.success("Download complete ✅");
-    fileLogger.debug('=== downloadCommand DEBUG END ===\n');
+    logger.success("Download complete — " + recordCount + " records written");
   } catch (e) {
     throw e;
   }
@@ -258,7 +234,7 @@ export async function deployCommand(args: Sinc.SharedCmdArgs): Promise<void> {
     try {
       const targetServer = process.env.SN_INSTANCE || "";
       if (!targetServer) {
-        logger.error("No server configured for deploy!");
+        logger.error("No SN_INSTANCE configured. Set it in your .env file.");
         return;
       }
       const { confirmed } = await inquirer.prompt<{ confirmed: boolean }>([
@@ -289,9 +265,9 @@ export async function statusCommand() {
   try {
     const client = defaultClient();
     let scopeObj = await unwrapSNResponse(client.getCurrentScope());
-    logger.info(`Instance: ${process.env.SN_INSTANCE}`);
-    logger.info(`Scope: ${scopeObj.scope}`);
-    logger.info(`User: ${process.env.SN_USER}`);
+    logger.info("Instance:  " + (process.env.SN_INSTANCE || "not set"));
+    logger.info("Scope:     " + scopeObj.scope);
+    logger.info("User:      " + (process.env.SN_USER || "not set"));
   } catch (e) {
     throw e;
   }

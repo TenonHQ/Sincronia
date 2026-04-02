@@ -1,12 +1,12 @@
 import dotenv from "dotenv";
 import * as ConfigManager from "./config";
-import { fileLogger } from "./FileLogger";
+import { logger } from "./Logger";
 
 export async function init() {
   try {
     await ConfigManager.loadConfigs();
   } catch (e) {
-    fileLogger.error(String(e));
+    logger.error("Failed to load configuration: " + String(e));
   }
 
   let path = ConfigManager.getEnvPath();

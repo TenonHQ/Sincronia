@@ -9,6 +9,7 @@ import {
   OrganizeOptions,
   AppTableGroup,
 } from "./types";
+import { logger } from "./logger";
 
 function getAppName(scope: string): string {
   // Extract the app short name from the scope identifier.
@@ -136,7 +137,7 @@ export async function organizeSchema(options: OrganizeOptions): Promise<SchemaIn
 
   const totalTables = Object.keys(schema).length;
 
-  console.log(chalk.blue(`\nOrganizing ${totalTables} tables into ${Object.keys(tablesByApp).length} applications...\n`));
+  logger.info("\nOrganizing " + totalTables + " tables into " + Object.keys(tablesByApp).length + " applications...");
 
   for (const [appName, tables] of Object.entries(tablesByApp)) {
     const appDir = path.join(outputDir, appName);
@@ -145,7 +146,7 @@ export async function organizeSchema(options: OrganizeOptions): Promise<SchemaIn
     await writeTableFiles({ appDir, tables });
     await writeSummary({ appDir, appName, tables });
 
-    console.log(`  ${chalk.cyan(appName)}: ${Object.keys(tables).length} tables`);
+    logger.item(chalk.cyan(appName) + ": " + Object.keys(tables).length + " tables");
   }
 
   const index = await writeIndex({
@@ -156,7 +157,7 @@ export async function organizeSchema(options: OrganizeOptions): Promise<SchemaIn
     totalTables,
   });
 
-  console.log(chalk.green(`\nSchema organized into ${outputDir}`));
+  logger.success("\nSchema organized into " + outputDir);
 
   return index;
 }

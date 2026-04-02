@@ -573,9 +573,8 @@ app.post("/api/clickup/deselect-task", function (req, res) {
 });
 
 app.listen(PORT, () => {
-  console.log(`\n  Sincronia Update Set Dashboard`);
-  console.log(`  Project:  ${PROJECT_ROOT}`);
-  console.log(`  Instance: ${SN_INSTANCE}`);
-  console.log(`  Config:   ${SINC_CONFIG_PATH}`);
-  console.log(`  http://localhost:${PORT}\n`);
+  console.log("\n  Sincronia Update Set Dashboard");
+  console.log("  Instance:  " + SN_INSTANCE);
+  console.log("  Project:   " + PROJECT_ROOT);
+  console.log("  Dashboard: http://localhost:" + PORT + "\n");
 });

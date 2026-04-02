@@ -153,6 +153,33 @@ module.exports = {
 - Handles authentication securely
 - Manages scope-based permissions
 
+### Server-Side REST API ("Claude")
+
+Sincronia's server-side operations are exposed via a **global-scoped Scripted REST API** named **"Claude"** on ServiceNow.
+
+- **Base path:** `/api/cadso/claude/`
+- **Web service definition sys_id:** `b8a9db8d33d7a6107b18bc534d5c7b7b`
+- **Scope:** Global
+- **Auth:** Requires authentication + `snc_internal_role`
+
+#### Operations
+
+| Method | Path | Name | Description |
+|--------|------|------|-------------|
+| `GET` | `/changeScope` | Change Scope | Switches current application scope. Query param: `scope` (scope name, e.g. `x_cadso_core`). |
+| `GET` | `/currentUpdateSet` | Current Update Set | Returns the current update set. Optional query param: `scope` (temporarily switches scope before reading). |
+| `GET` | `/changeUpdateSet` | Change Update Set | Switches the active update set. Query params: `sysId` (direct), or `name` + `scope` (lookup by name within scope, most recent in-progress). |
+| `POST` | `/pushWithUpdateSet` | Push with Update Set | Updates a record within a specified update set. Body: `{ update_set_sys_id, table, record_sys_id, fields }`. Saves/restores the previous update set around the operation. |
+| `POST` | `/createRecord` | Sinc - Create Record | Creates a new record. Body: `{ table, fields }` (required), `{ sys_id, scope, update_set_sys_id }` (optional). Supports cross-instance moves via explicit `sys_id` and scope targeting. |
+| `POST` | `/deleteRecord` | Sinc - Delete Record | Deletes a record. Body: `{ table, sys_id }`. Returns the display name of the deleted record on success. |
+
+#### Notes
+
+- All POST operations accept and return `application/json`.
+- Update set operations save and restore the previous update set to avoid side effects.
+- The `createRecord` endpoint supports setting a specific `sys_id` via `setNewGuidValue()` for cross-instance record moves.
+- Source XML export is stored at: `Downloads/sys_ws_operation (web_service_definition=b8a9db8d33d7a6107b18bc534d5c7b7b)*.xml`
+
 ### Related Directories
 
 - **ServiceNow/** - Main application code synced by Sincronia

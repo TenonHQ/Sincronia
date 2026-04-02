@@ -18,21 +18,16 @@ export const SNFileExists =
   };
 
 export const writeManifestFile = async (man: SN.AppManifest, scope?: string) => {
-  fileLogger.debug('\n--- writeManifestFile DEBUG ---');
-  fileLogger.debug('Scope:', scope || 'No scope (legacy)');
-  
   if (scope) {
-    // Write scope-specific manifest
     const manifestPath = ConfigManager.getScopeManifestPath(scope);
-    fileLogger.debug('Writing scope-specific manifest to:', manifestPath);
+    fileLogger.debug("Writing manifest for scope " + scope + " to " + manifestPath);
     return fsp.writeFile(
       manifestPath,
       JSON.stringify(man, null, 2),
     );
   }
-  // Write legacy single manifest
   const manifestPath = ConfigManager.getManifestPath();
-  fileLogger.debug('Writing legacy manifest to:', manifestPath);
+  fileLogger.debug("Writing manifest to " + manifestPath);
   return fsp.writeFile(
     manifestPath,
     JSON.stringify(man, null, 2),
@@ -41,11 +36,7 @@ export const writeManifestFile = async (man: SN.AppManifest, scope?: string) => 
 
 export const writeScopeManifest = async (scope: string, man: SN.AppManifest) => {
   const manifestPath = ConfigManager.getScopeManifestPath(scope);
-  fileLogger.debug('\n--- writeScopeManifest DEBUG ---');
-  fileLogger.debug('Scope:', scope);
-  fileLogger.debug('Manifest path:', manifestPath);
-  fileLogger.debug('--- writeScopeManifest DEBUG END ---\n');
-  
+  fileLogger.debug("Writing scope manifest: " + scope + " -> " + manifestPath);
   return fsp.writeFile(
     manifestPath,
     JSON.stringify(man, null, 2),
@@ -55,66 +46,34 @@ export const writeScopeManifest = async (scope: string, man: SN.AppManifest) => 
 export const writeSNFileCurry =
   (checkExists: boolean) =>
   async (file: SN.File, parentPath: string): Promise<void> => {
-    fileLogger.debug('\n--- writeSNFileCurry DEBUG ---');
-    fileLogger.debug('Check exists:', checkExists);
-    fileLogger.debug('Parent path:', parentPath);
-    fileLogger.debug('File to write:', {
-      name: file.name,
-      type: file.type,
-      hasContent: !!file.content,
-      contentLength: file.content ? file.content.length : 0
-    });
-    
     let { name, type, content = "" } = file;
-    // content can sometimes be null
     if (!content) {
-      fileLogger.debug('Content is null/undefined, using empty string');
       content = "";
     }
-    
+
     const fullPath = path.join(parentPath, `${name}.${type}`);
-    fileLogger.debug('Full file path:', fullPath);
-    
-    // Special logging for metadata files
-    if (name.toLowerCase().includes('metadata') || name.toLowerCase() === 'metadata') {
-      fileLogger.debug('*** METADATA FILE DETECTED ***');
-      fileLogger.debug('  Name:', name);
-      fileLogger.debug('  Type:', type);
-      fileLogger.debug('  Path:', fullPath);
-      fileLogger.debug('  Content preview:', content ? content.substring(0, 100) : 'NO CONTENT');
-    }
-    
+
     const write = async () => {
-      fileLogger.debug(`Writing file: ${fullPath}`);
+      fileLogger.debug("Writing: " + fullPath);
       try {
         const result = await fsp.writeFile(fullPath, content);
-        fileLogger.debug(`✓ File written successfully: ${fullPath}`);
-        
-        // Verify metaData.json was actually written
-        if (name.toLowerCase() === 'metadata' && type === 'json') {
-          const exists = await fsp.access(fullPath).then(() => true).catch(() => false);
-          fileLogger.debug(`*** METADATA FILE VERIFICATION: File exists on disk = ${exists} ***`);
-        }
-        
         return result;
       } catch (error) {
-        fileLogger.error(`✗ ERROR writing file ${fullPath}:`, error);
+        fileLogger.error("Failed to write " + fullPath + ":", error);
         throw error;
       }
     };
-    
+
     if (checkExists) {
       const exists = await SNFileExists(parentPath)(file);
-      fileLogger.debug(`File exists check: ${exists}`);
       if (!exists) {
         await write();
       } else {
-        fileLogger.debug(`File already exists, skipping: ${fullPath}`);
+        fileLogger.debug("Skipped (exists): " + fullPath);
       }
     } else {
       await write();
     }
-    fileLogger.debug('--- writeSNFileCurry DEBUG END ---\n');
   };
 
 export const createDirRecursively = async (path: string): Promise<void> => {

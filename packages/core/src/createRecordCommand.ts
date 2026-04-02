@@ -157,9 +157,7 @@ export async function createRecordCommand(args: TSFIXME): Promise<void> {
       process.exit(1);
     }
 
-    fileLogger.debug("\n=== createRecordCommand DEBUG START ===");
-    fileLogger.debug("Table:", table);
-    fileLogger.debug("Args:", JSON.stringify(typedArgs));
+    fileLogger.debug("Create record: table=" + table);
 
     // 1. Build field values from all sources
     var fields: Record<string, string> = {};
@@ -318,18 +316,15 @@ export async function createRecordCommand(args: TSFIXME): Promise<void> {
       }
     }
 
-    fileLogger.debug("=== createRecordCommand DEBUG END ===\n");
   } catch (e) {
     logger.error("Failed to create record");
     if (e instanceof Error) {
       logger.error(e.message);
-      fileLogger.error("Create record error:", e.message);
       if ((e as TSFIXME).response) {
         var respStatus = (e as TSFIXME).response.status;
         var respData = (e as TSFIXME).response.data;
-        logger.error("Response status: " + respStatus);
-        logger.error("Response data: " + JSON.stringify(respData));
-        fileLogger.error("Full response data:", JSON.stringify(respData, null, 2));
+        logger.error("Server responded with status " + respStatus);
+        fileLogger.error("Create failed — status: " + respStatus + ", response: " + JSON.stringify(respData));
       }
     }
     process.exit(1);

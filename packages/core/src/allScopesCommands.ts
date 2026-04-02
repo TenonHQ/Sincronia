@@ -35,22 +35,16 @@ async function processManifestForScope(
 ): Promise<void> {
   try {
     // Ensure the source directory exists
-    logger.info(`Creating source directory: ${sourceDirectory}`);
     try {
       await fsp.mkdir(sourceDirectory, { recursive: true });
-      logger.info(`Successfully created directory: ${sourceDirectory}`);
     } catch (dirError) {
-      logger.error(
-        `Failed to create source directory ${sourceDirectory}: ${dirError}`,
-      );
+      logger.error("Failed to create directory: " + sourceDirectory);
       throw dirError;
     }
 
-    // Process each table in the manifest
     const tables = manifest.tables || {};
     const tableNames = Object.keys(tables);
-    logger.info(`Processing ${tableNames.length} tables`);
-    logger.debug(`Table names: ${tableNames.join(", ")}`);
+    logger.info("Processing " + tableNames.length + " tables for " + sourceDirectory);
 
     for (const tableName of tableNames) {
       const tableRecords = tables[tableName];
@@ -59,9 +53,7 @@ async function processManifestForScope(
       // Process each record in the table
       const recordNames = Object.keys(tableRecords.records || {});
 
-      logger.debug(
-        `Processing ${recordNames.length} records in table ${tableName}`,
-      );
+      fileLogger.debug("Table " + tableName + ": " + recordNames.length + " records");
 
       for (const recordName of recordNames) {
         const record = tableRecords.records[recordName];
@@ -69,20 +61,10 @@ async function processManifestForScope(
         const recordDirName = record.name || recordName;
         const recordPath = path.join(tablePath, recordDirName);
 
-        fileLogger.debug(
-          `Processing record: ${recordDirName} with ${
-            record.files?.length || 0
-          } files`,
-        );
-
         // Check if metadata file exists in the files from server
         const hasMetadataFromServer = record.files?.some(
           (f: any) => f.name === 'metaData' && f.type === 'json'
         );
-        
-        if (hasMetadataFromServer) {
-          fileLogger.debug(`*** METADATA FILE EXISTS FROM SERVER for ${recordDirName} ***`);
-        }
 
         // Ensure the record directory exists
         await fsp.mkdir(recordPath, { recursive: true });
@@ -92,25 +74,13 @@ async function processManifestForScope(
           const filePath = path.join(recordPath, `${file.name}.${file.type}`);
           const fileContent = file.content || "";
           
-          if (file.name === 'metaData' && file.type === 'json') {
-            fileLogger.debug(`*** WRITING METADATA FILE FROM SERVER: ${filePath}`);
-            fileLogger.debug(`Metadata content length: ${fileContent.length} chars`);
-          }
-
-          // Ensure the parent directory exists before writing the file
           const fileDir = path.dirname(filePath);
-          logger.debug(`Creating directory: ${fileDir}`);
           await fsp.mkdir(fileDir, { recursive: true });
 
-          // Create the file
-          logger.debug(`Writing file: ${filePath}`);
           try {
             await fsp.writeFile(filePath, fileContent, "utf8");
-            if (file.name === 'metaData' && file.type === 'json') {
-              fileLogger.debug(`*** SUCCESSFULLY WROTE METADATA FILE: ${filePath}`);
-            }
           } catch (writeError) {
-            logger.error(`Failed to write file ${filePath}: ${writeError}`);
+            logger.error("Failed to write: " + filePath);
             throw writeError;
           }
         }
@@ -123,20 +93,18 @@ async function processManifestForScope(
             _note: "Generated locally - metadata not provided by server"
           };
           
-          fileLogger.debug(`*** CREATING LOCAL METADATA FILE (not from server): ${metadataFilePath}`);
           try {
             await fsp.writeFile(metadataFilePath, JSON.stringify(metadataContent, null, 2), "utf8");
-            fileLogger.debug(`*** SUCCESSFULLY CREATED LOCAL METADATA FILE for ${recordDirName}`);
           } catch (metaError) {
-            logger.error(`Failed to write metadata file ${metadataFilePath}: ${metaError}`);
+            logger.error("Failed to write metadata: " + metadataFilePath);
           }
         }
       }
     }
 
-    logger.info(`Successfully processed files for ${sourceDirectory}`);
+    logger.info("Files written to " + sourceDirectory);
   } catch (error) {
-    logger.error(`Error in processManifestForScope: ${error}`);
+    logger.error("Error processing files for " + sourceDirectory + ": " + error);
     throw error;
   }
 }
@@ -147,7 +115,8 @@ async function processScope(
   apiDelay: number = 0,
 ): Promise<ScopeResult> {
   try {
-    logger.info(`Processing scope: ${scopeName}`);
+    const instance = process.env.SN_INSTANCE || "unknown";
+    logger.info("Processing scope: " + scopeName + " (" + instance + ")");
 
     // Get the client
     const client = defaultClient();
@@ -171,22 +140,18 @@ async function processScope(
       );
     }
 
-    logger.info(`Source directory for ${scopeName}: ${sourceDirectory}`);
+    fileLogger.debug("Source directory for " + scopeName + ": " + sourceDirectory);
 
-    // Get apps list for verification
-    logger.info(`Getting apps list from ServiceNow...`);
     const apps = await unwrapSNResponse(client.getAppList());
 
-    // Check if the scope exists in the apps list
     const scopeApp = apps.find((app: any) => app.scope === scopeName);
     if (!scopeApp) {
-      logger.warn(`⚠️ Scope ${scopeName} not found in ServiceNow apps list`);
+      logger.warn("Scope " + scopeName + " not found in ServiceNow apps list");
     } else {
-      logger.info(`Found app: ${scopeApp.displayName} (${scopeName})`);
+      logger.info("Found app: " + scopeApp.displayName);
     }
 
-    // Get manifest for this scope (structure only)
-    logger.info(`Downloading manifest for scope: ${scopeName}`);
+    logger.info("Downloading manifest for " + scopeName + "...");
     if (apiDelay > 0) {
       await delay(apiDelay);
     }
@@ -194,8 +159,7 @@ async function processScope(
       client.getManifest(scopeName, config, false), // Get structure first
     );
 
-    // Now download the actual file contents using getMissingFiles
-    logger.info(`Downloading file contents for scope: ${scopeName}...`);
+    logger.info("Downloading file contents for " + scopeName + "...");
     const missingFiles: any = {};
 
     // Build the missing files structure from the manifest
@@ -213,7 +177,6 @@ async function processScope(
     }
 
     // Get the actual file contents
-    fileLogger.debug("Getting missing files with content from ServiceNow...");
     if (apiDelay > 0) {
       await delay(apiDelay);
     }
@@ -228,17 +191,7 @@ async function processScope(
           const recordWithContent =
             filesWithContent[tableName].records[recordName];
           
-          // Log what files are coming from the server
-          fileLogger.debug(`Files from server for ${tableName}/${recordName}:`);
-          for (const file of recordWithContent.files || []) {
-            fileLogger.debug(`  - ${file.name}.${file.type} (content: ${file.content ? file.content.length + ' chars' : 'null'})`);
-            if (file.name === 'metaData' && file.type === 'json') {
-              fileLogger.debug('*** METADATA FILE FOUND FROM SERVER ***');
-              fileLogger.debug(`Metadata content preview: ${file.content ? file.content.substring(0, 200) : 'no content'}`);
-            }
-          }
-          
-          const manifestRecord = Object.values(
+              const manifestRecord = Object.values(
             manifest.tables[tableName].records,
           ).find((r: any) => r.sys_id === recordWithContent.sys_id);
           if (manifestRecord) {
@@ -248,13 +201,8 @@ async function processScope(
       }
     }
 
-    // Process the manifest to create local files in the correct directory
-    logger.info(
-      `Processing manifest and creating local files for ${scopeName}...`,
-    );
-    logger.info(
-      `Manifest has ${Object.keys(manifest?.tables || {}).length} tables`,
-    );
+    const tableCount = Object.keys(manifest?.tables || {}).length;
+    logger.info("Writing " + tableCount + " tables for " + scopeName + "...");
     await processManifestForScope(manifest, sourceDirectory, true);
 
     // Create the scope-specific manifest structure
@@ -263,8 +211,7 @@ async function processScope(
       scope: scopeName,
     };
 
-    logger.success(`✅ Successfully processed scope: ${scopeName}`);
-    logger.info(`Files saved to: ${sourceDirectory}`);
+    logger.success("Scope " + scopeName + " complete — files saved to " + sourceDirectory);
 
     return {
       scope: scopeName,
@@ -273,7 +220,7 @@ async function processScope(
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error(`❌ Failed to process scope ${scopeName}: ${errorMessage}`);
+    logger.error("Failed to process scope " + scopeName + ": " + errorMessage);
     return {
       scope: scopeName,
       success: false,
@@ -334,15 +281,8 @@ export async function initScopesCommand(args: Sinc.SharedCmdArgs & { delay?: num
     }
 
     const scopes = Object.keys(config.scopes);
-    logger.info(
-      `Found ${scopes.length} scopes to process: ${scopes.join(", ")}`,
-    );
-
-    // Process all scopes in parallel
-    logger.info("Starting parallel processing of all scopes...");
-    logger.info(
-      "This will download manifests and files for each scope from ServiceNow...\n",
-    );
+    const instance = process.env.SN_INSTANCE || "unknown";
+    logger.info("Initializing " + scopes.length + " scopes from " + instance + ": " + scopes.join(", "));
 
     const scopePromises = scopes.map((scopeName) =>
       processScope(scopeName, config.scopes![scopeName], apiDelay),
@@ -382,21 +322,13 @@ export async function initScopesCommand(args: Sinc.SharedCmdArgs & { delay?: num
       logger.info(`Wrote manifest for ${scopeName} to: ${scopeManifestPath}`);
     }
 
-    logger.info("=".repeat(50));
-    logger.success(`✅ Scope initialization complete!`);
-    logger.info(`Successfully processed: ${successCount} scopes`);
+    logger.info("─".repeat(50));
+    logger.success("Scope initialization complete — " + successCount + "/" + scopes.length + " scopes processed");
     if (failCount > 0) {
-      logger.warn(`Failed to process: ${failCount} scopes`);
+      logger.warn(failCount + " scope(s) failed — check errors above");
     }
-    logger.info(
-      `Manifests written as per-scope files (sinc.manifest.<scope>.json)`,
-    );
-    logger.info(
-      "\nAll scope files have been downloaded to their respective source directories.",
-    );
-    logger.success(
-      "\nYou can now use 'npx sinc watchAllScopes' to start development mode!",
-    );
+    logger.info("Manifests: sinc.manifest.<scope>.json");
+    logger.success("Run 'npx sinc watchAllScopes' to start development");
   } catch (e) {
     logger.error("Error initializing scopes: " + e);
     throw e;

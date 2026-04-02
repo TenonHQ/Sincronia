@@ -76,13 +76,13 @@ export const snClient = (
   );
 
   const getAppList = () => {
-    const endpoint = "api/sinc/sinc/getAppList";
+    const endpoint = "api/sinc/sincronia/getAppList";
     type AppListResponse = Sinc.SNAPIResponse<SN.App[]>;
     return client.get<AppListResponse>(endpoint);
   };
 
   const updateATFfile = (contents: string, sysId: string) => {
-    const endpoint = "api/sinc/sinc/pushATFfile";
+    const endpoint = "api/sinc/sincronia/pushATFfile";
     try {
       return client.post(endpoint, { file: contents, sys_id: sysId });
     } catch (e) {
@@ -154,7 +154,7 @@ export const snClient = (
   };
 
   const getCurrentScope = () => {
-    const endpoint = "api/sinc/sinc/getCurrentScope";
+    const endpoint = "api/sinc/sincronia/getCurrentScope";
     type ScopeResponse = Sinc.SNAPIResponse<SN.ScopeObj>;
     return client.get<ScopeResponse>(endpoint);
   };
@@ -214,17 +214,10 @@ export const snClient = (
     missingFiles: SN.MissingFileTableMap,
     tableOptions: Sinc.ITableOptionsMap,
   ) => {
-    const endpoint = `api/sinc/sinc/bulkDownload`;
+    const endpoint = `api/sinc/sincronia/bulkDownload`;
 
-    fileLogger.debug("\n=== getMissingFiles DEBUG ===");
-    fileLogger.debug("Fetching missing files from ServiceNow");
-    fileLogger.debug("Endpoint:", endpoint);
-    fileLogger.debug(
-      "Missing files request:",
-      JSON.stringify(missingFiles, null, 2),
-    );
-    fileLogger.debug("Table options:", JSON.stringify(tableOptions, null, 2));
-    fileLogger.debug("=== getMissingFiles DEBUG END ===\n");
+    const tableCount = Object.keys(missingFiles).length;
+    fileLogger.debug("Bulk downloading files for " + tableCount + " tables");
 
     type TableMap = Sinc.SNAPIResponse<SN.TableMap>;
     return client.post<TableMap>(endpoint, { missingFiles, tableOptions });
@@ -235,7 +228,7 @@ export const snClient = (
     config: Sinc.ScopedConfig,
     withFiles = false,
   ) => {
-    const endpoint = `api/sinc/sinc/getManifest/${scope}`;
+    const endpoint = `api/sinc/sincronia/getManifest/${scope}`;
     const {
       includes = {},
       excludes = {},
@@ -243,30 +236,7 @@ export const snClient = (
       scopes = {},
     } = config;
 
-    fileLogger.debug("\n=== getManifest DEBUG ===");
-    fileLogger.debug("Fetching manifest from ServiceNow");
-    fileLogger.debug("Endpoint:", endpoint);
-    fileLogger.debug("Scope:", scope);
-    fileLogger.debug("With files (should download file contents):", withFiles);
-    fileLogger.debug(
-      "Request body:",
-      JSON.stringify(
-        {
-          includes,
-          excludes,
-          tableOptions,
-          withFiles,
-          getContents: withFiles,
-        },
-        null,
-        2,
-      ),
-    );
-    fileLogger.debug(
-      "IMPORTANT: withFiles=" + withFiles + " means",
-      withFiles ? "DOWNLOAD file contents" : "NO file contents (manifest only)",
-    );
-    fileLogger.debug("=== getManifest DEBUG END ===\n");
+    fileLogger.debug("Fetching manifest for scope " + scope + (withFiles ? " (with file contents)" : " (structure only)"));
 
     type AppResponse = Sinc.SNAPIResponse<SN.AppManifest>;
     return client.post<AppResponse>(endpoint, {
@@ -415,83 +385,18 @@ export const unwrapSNResponse = async <T>(
   try {
     const resp = await clientPromise;
 
-    // Debug logging for manifest responses
-    if (
-      resp.config &&
-      resp.config.url &&
-      resp.config.url.includes("getManifest")
-    ) {
-      fileLogger.debug("\n=== unwrapSNResponse DEBUG (Manifest) ===");
-      fileLogger.debug("Response status:", resp.status);
-      fileLogger.debug("Response URL:", resp.config.url);
-
-      // Check structure of manifest response
+    // Log response summary for key endpoints
+    if (resp.config && resp.config.url) {
+      const url = resp.config.url;
       const result: any = resp.data.result;
-      if (result && result.tables) {
-        const tables = result.tables;
-        fileLogger.debug("Tables in manifest:", Object.keys(tables));
 
-        // Sample first table and record to see file structure
-        const firstTable = Object.keys(tables)[0];
-        if (firstTable) {
-          const table = tables[firstTable];
-          const firstRecord = Object.keys(table.records)[0];
-          if (firstRecord) {
-            const record = table.records[firstRecord];
-            fileLogger.debug(`Sample record from ${firstTable}:`, {
-              name: record.name,
-              sys_id: record.sys_id,
-              files: record.files.map((f: any) => ({
-                name: f.name,
-                type: f.type,
-                hasContent: !!f.content,
-              })),
-            });
-          }
-        }
+      if (url.includes("getManifest") && result && result.tables) {
+        const tableCount = Object.keys(result.tables).length;
+        fileLogger.debug("Manifest received: " + tableCount + " tables (status " + resp.status + ")");
+      } else if (url.includes("bulkDownload") && result) {
+        const tableCount = Object.keys(result).length;
+        fileLogger.debug("Bulk download received: " + tableCount + " tables (status " + resp.status + ")");
       }
-      fileLogger.debug("=== unwrapSNResponse DEBUG END ===\n");
-    }
-
-    // Debug logging for bulkDownload responses
-    if (
-      resp.config &&
-      resp.config.url &&
-      resp.config.url.includes("bulkDownload")
-    ) {
-      fileLogger.debug("\n=== unwrapSNResponse DEBUG (BulkDownload) ===");
-      fileLogger.debug("Response status:", resp.status);
-      fileLogger.debug("Response URL:", resp.config.url);
-
-      const result: any = resp.data.result;
-      if (result) {
-        const tables = result;
-        fileLogger.debug("Tables in bulk download:", Object.keys(tables || {}));
-
-        // Log details of files received
-        if (tables) {
-          Object.keys(tables).forEach((tableName: string) => {
-            const table = tables[tableName];
-            fileLogger.debug(`Table: ${tableName}`);
-            if (table && table.records) {
-              Object.keys(table.records).forEach((recordName: string) => {
-                const record = table.records[recordName];
-                fileLogger.debug(`  Record: ${recordName}`);
-                if (record && record.files) {
-                  record.files.forEach((file: any) => {
-                    fileLogger.debug(
-                      `    File: ${file.name}.${file.type} (content: ${
-                        file.content ? file.content.length + " chars" : "null"
-                      })`,
-                    );
-                  });
-                }
-              });
-            }
-          });
-        }
-      }
-      fileLogger.debug("=== unwrapSNResponse DEBUG END ===\n");
     }
 
     return resp.data.result;
@@ -499,8 +404,8 @@ export const unwrapSNResponse = async <T>(
     let message;
     if (e instanceof Error) message = e.message;
     else message = String(e);
-    logger.error("Error processing server response");
-    logger.error(message);
+    const instance = process.env.SN_INSTANCE || "unknown";
+    logger.error("Error from " + instance + ": " + message);
     throw e;
   }
 };

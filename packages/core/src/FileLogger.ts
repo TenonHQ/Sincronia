@@ -84,15 +84,10 @@ class FileLogger {
   }
 
   /**
-   * Debug level logging - replaces console.log
+   * Debug level logging - file only, no console output
    */
   debug(message: string, ...args: any[]) {
     const formattedMessage = this.formatMessage('DEBUG', message, ...args);
-    
-    // Write to console (preserving original console.log behavior)
-    console.log(message, ...args);
-    
-    // Write to file
     this.writeToFile(`[DEBUG] ${formattedMessage}`);
   }
 

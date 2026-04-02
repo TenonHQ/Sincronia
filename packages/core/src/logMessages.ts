@@ -9,7 +9,7 @@ export function scopeCheckMessage(scopeCheck: Sinc.ScopeCheckResult) {
   let mScope = chalk.blue(scopeCheck.manifestScope);
 
   logger.error(
-    `Your user's scope is set to ${sScope} but this project is configured for the ${mScope} scope. Please switch scopes in ServiceNow to continue.`,
+    "Scope mismatch: your session is " + sScope + " but this project targets " + mScope + ". Switch scopes in ServiceNow to continue.",
   );
 }
 
@@ -33,21 +33,22 @@ export function logFilePush(
   res: Sinc.PushResult,
 ): void {
   const { message, success } = res;
+  const instance = process.env.SN_INSTANCE || "instance";
   const label = chalk.bold.blue;
-  logger.info(chalk.underline("File Push Summary"));
-  logger.info(`${label("When:\t")}${new Date().toLocaleTimeString()}`);
-  logger.info(`${label("Table:\t")}${context.tableName}`);
-  logger.info(`${label("Record:\t")}${context.name}`);
-  logger.info(`${label("Field:\t")}${context.targetField}`);
-  let status = chalk.green("Pushed 👍");
-  if (!success) {
-    status = chalk.red("Failed to push 👎");
-  }
-  logger.info(`${label("Status:\t")}${status}`);
-  if (!success) {
+  const timestamp = new Date().toLocaleTimeString();
+
+  if (success) {
+    logger.info(
+      chalk.green("Pushed") + " " + context.tableName + "/" + context.name +
+      " (" + context.targetField + ") to " + instance + " at " + timestamp,
+    );
+  } else {
+    logger.error(
+      "Failed to push " + context.tableName + "/" + context.name +
+      " (" + context.targetField + ") to " + instance,
+    );
     logger.error(message);
   }
-  spacer();
 }
 
 function multiLog(
