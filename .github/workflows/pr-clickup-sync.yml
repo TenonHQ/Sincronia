@@ -47,7 +47,6 @@ jobs:
     uses: TenonHQ/Craftsman/.github/workflows/pr-clickup-sync.yml@main
     with:
       pr_event: ${{ needs.determine-event.outputs.pr_event }}
-      pr_body: ${{ github.event.pull_request.body }}
       pr_url: ${{ github.event.pull_request.html_url }}
       pr_number: ${{ github.event.pull_request.number }}
       target_branch: ${{ github.event.pull_request.base.ref }}
