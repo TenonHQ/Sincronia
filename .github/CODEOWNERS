@@ -1,0 +1,10 @@
+# Default owner for everything
+* @Dman89
+
+# GitHub Actions workflows — require CTO review
+.github/ @Dman89
+
+# Configuration files — require CTO review
+*.json @Dman89
+*.yml @Dman89
+*.yaml @Dman89
