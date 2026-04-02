@@ -7,6 +7,19 @@ import { wait } from "./genericUtils";
 import { logger } from "./Logger";
 import { fileLogger } from "./FileLogger";
 
+// Local helper to strip _ directive keys before sending to ServiceNow API.
+// Defined here (not imported from config.ts) to avoid circular dependencies.
+function _stripUnderscoreKeys(obj: any): any {
+  var result: any = {};
+  var keys = Object.keys(obj || {});
+  for (var i = 0; i < keys.length; i++) {
+    if (keys[i].charAt(0) !== "_") {
+      result[keys[i]] = obj[keys[i]];
+    }
+  }
+  return result;
+}
+
 export const retryOnErr = async <T>(
   f: () => Promise<T>,
   allowedRetries: number,
@@ -236,12 +249,16 @@ export const snClient = (
       scopes = {},
     } = config;
 
+    // Strip _ directive keys before sending to ServiceNow API
+    var cleanIncludes = _stripUnderscoreKeys(includes);
+    var cleanExcludes = _stripUnderscoreKeys(excludes);
+
     fileLogger.debug("Fetching manifest for scope " + scope + (withFiles ? " (with file contents)" : " (structure only)"));
 
     type AppResponse = Sinc.SNAPIResponse<SN.AppManifest>;
     return client.post<AppResponse>(endpoint, {
-      includes,
-      excludes,
+      includes: cleanIncludes,
+      excludes: cleanExcludes,
       tableOptions,
       withFiles,
       getContents: withFiles, // ServiceNow expects getContents, not withFiles

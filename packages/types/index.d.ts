@@ -49,7 +49,7 @@ export namespace Sinc {
     [fieldName: string]: FieldConfig;
   }
   interface TablePropMap {
-    [table: string]: boolean | FieldMap;
+    [key: string]: boolean | FieldMap | string[] | { [scope: string]: any };
   }
   interface PluginRule {
     match: RegExp;

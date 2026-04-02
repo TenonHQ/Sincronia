@@ -144,17 +144,17 @@ async function loadConfig(skipConfigPath = false): Promise<Sinc.ScopedConfig> {
     let configPath = getConfigPath();
     if (configPath) {
       let projectConfig: Sinc.ScopedConfig = (await import(configPath)).default;
-      //merge in includes/excludes
-      let {
+      // Config is king — no merging with defaults. sinc.config.js is the single source of truth.
+      var {
         includes: pIncludes = {},
         excludes: pExcludes = {},
         tableOptions: pTableOptions = {},
         scopes: pScopes = {},
       } = projectConfig;
-      projectConfig.includes = Object.assign(includes, pIncludes);
-      projectConfig.excludes = Object.assign(excludes, pExcludes);
-      projectConfig.tableOptions = Object.assign(tableOptions, pTableOptions);
-      projectConfig.scopes = Object.assign(scopes, pScopes);
+      projectConfig.includes = pIncludes;
+      projectConfig.excludes = pExcludes;
+      projectConfig.tableOptions = pTableOptions;
+      projectConfig.scopes = pScopes;
       return projectConfig;
     } else {
       logger.warn("Couldn't find config file. Loading default...");
@@ -301,4 +301,96 @@ async function loadRootDir(skip?: boolean) {
   let configPath = getConfigPath();
   if (configPath) root_dir = path.dirname(configPath);
   else root_dir = process.cwd();
+}
+
+// ============================================================================
+// Config Resolution Engine
+// Keys prefixed with "_" are config directives (e.g. _tables, _scopes).
+// Everything else is a table name with field type overrides.
+// ============================================================================
+
+export interface ResolvedScopeConfig {
+  tables: string[];
+  fieldOverrides: Sinc.TablePropMap;
+  apiIncludes: Sinc.TablePropMap;
+  apiExcludes: Sinc.TablePropMap;
+}
+
+export function isDirectiveKey(key: string): boolean {
+  return key.charAt(0) === "_";
+}
+
+export function stripDirectiveKeys(obj: Sinc.TablePropMap): Sinc.TablePropMap {
+  var result: Sinc.TablePropMap = {};
+  var keys = Object.keys(obj || {});
+  for (var i = 0; i < keys.length; i++) {
+    if (!isDirectiveKey(keys[i])) {
+      result[keys[i]] = obj[keys[i]];
+    }
+  }
+  return result;
+}
+
+export function resolveConfigForScope(scopeName: string): ResolvedScopeConfig {
+  var cfg = getConfig();
+  var cfgIncludes: any = cfg.includes || {};
+  var cfgExcludes: any = cfg.excludes || {};
+
+  // Backward compat: support old "table" key (no underscore)
+  var globalTables: string[] = cfgIncludes._tables || [];
+  if (!cfgIncludes._tables && Array.isArray(cfgIncludes.table)) {
+    logger.warn("Deprecation: 'table' key in includes is deprecated. Use '_tables' instead.");
+    globalTables = cfgIncludes.table;
+  }
+
+  // Resolve scope-specific overrides
+  var scopesDirective: any = cfgIncludes._scopes || {};
+  var scopeOverride: any = scopesDirective[scopeName] || {};
+  var scopeTables: string[] = scopeOverride._tables || [];
+
+  // Deduplicated union of global + scope tables
+  var tableSet: { [key: string]: boolean } = {};
+  var i: number;
+  for (i = 0; i < globalTables.length; i++) {
+    tableSet[globalTables[i]] = true;
+  }
+  for (i = 0; i < scopeTables.length; i++) {
+    tableSet[scopeTables[i]] = true;
+  }
+  var resolvedTables = Object.keys(tableSet);
+
+  // Resolve excludes _tables
+  var excludeTables: string[] = cfgExcludes._tables || [];
+  if (!cfgExcludes._tables && Array.isArray(cfgExcludes.table)) {
+    excludeTables = cfgExcludes.table;
+  }
+
+  // Remove excluded tables from the resolved list
+  if (excludeTables.length > 0) {
+    var excludeSet: { [key: string]: boolean } = {};
+    for (i = 0; i < excludeTables.length; i++) {
+      excludeSet[excludeTables[i]] = true;
+    }
+    resolvedTables = resolvedTables.filter(function(t) {
+      return !excludeSet[t];
+    });
+  }
+
+  // Field overrides: global non-_ keys merged with scope-specific non-_ keys (scope wins)
+  var globalFieldOverrides = stripDirectiveKeys(cfgIncludes);
+  var scopeFieldOverrides = stripDirectiveKeys(scopeOverride);
+  var fieldOverrides: Sinc.TablePropMap = Object.assign({}, globalFieldOverrides, scopeFieldOverrides);
+
+  // API includes: field overrides only (no _ keys), with scope overrides merged in
+  var apiIncludes: Sinc.TablePropMap = Object.assign({}, fieldOverrides);
+
+  // API excludes: strip _ keys
+  var apiExcludes: Sinc.TablePropMap = stripDirectiveKeys(cfgExcludes);
+
+  return {
+    tables: resolvedTables,
+    fieldOverrides: fieldOverrides,
+    apiIncludes: apiIncludes,
+    apiExcludes: apiExcludes,
+  };
 }

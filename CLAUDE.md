@@ -79,6 +79,19 @@ Sincronia/
 └── README.md            # Main documentation
 ```
 
+## Config Architecture
+
+**`sinc.config.js` is the single source of truth.** There are no hidden defaults.
+
+- `defaultOptions.ts` exports empty objects — it was intentionally cleared. Do not add defaults back.
+- The `_` prefix convention: keys starting with `_` are config directives, not table names.
+  - `includes._tables` — whitelist of tables to sync (only these get written to disk)
+  - `includes._scopes` — per-scope overrides (additional tables, field type overrides)
+  - `excludes._tables` — tables to explicitly exclude
+- Non-prefixed keys in `includes` are table names with field type overrides (e.g. `sys_ux_macroponent: { composition: { type: "json" } }`)
+- Client-side filtering enforces the whitelist — ServiceNow returns all tables in a scope, but only `_tables` entries get written to disk
+- Legacy default excludes (26 tables removed during overhaul) are preserved in Claude memory for reference
+
 ## Development Guidelines
 
 ### Configuration Files
@@ -87,13 +100,21 @@ Sincronia/
 
 ```javascript
 module.exports = {
-  instance: "your-instance.service-now.com",
-  username: process.env.SN_USERNAME,
-  password: process.env.SN_PASSWORD,
-  scopes: ["x_cadso_core", "x_cadso_work"],
-  plugins: [
-    // Add build plugins here
-  ]
+  sourceDirectory: "src",
+  buildDirectory: "build",
+  includes: {
+    _tables: ["sys_script_include", "sys_script", ...],
+    sys_ux_macroponent: { composition: { type: "json" } },
+    _scopes: {
+      x_cadso_automate: {
+        _tables: ["x_cadso_core_setting"],  // additional tables for this scope
+      }
+    }
+  },
+  excludes: { _tables: [] },
+  scopes: {
+    x_cadso_core: { sourceDirectory: "src/x_cadso_core" },
+  }
 };
 ```
 

@@ -167,12 +167,35 @@ export async function downloadCommand(args: Sinc.CmdDownloadArgs) {
     const client = defaultClient();
     const config = ConfigManager.getConfig();
 
+    // Resolve config for this scope (strips _ directives for API, provides table whitelist)
+    var resolved = ConfigManager.resolveConfigForScope(args.scope);
+    var apiConfig = Object.assign({}, config, {
+      includes: resolved.apiIncludes,
+      excludes: resolved.apiExcludes,
+    });
+
     const man = await unwrapSNResponse(
-      client.getManifest(args.scope, config, true),
+      client.getManifest(args.scope, apiConfig, true),
     );
 
+    // Client-side table filtering — only keep tables in the _tables whitelist
+    if (resolved.tables && resolved.tables.length > 0) {
+      var allTableNames = Object.keys(man.tables || {});
+      var filtered: any = {};
+      for (var i = 0; i < allTableNames.length; i++) {
+        if (resolved.tables.indexOf(allTableNames[i]) !== -1) {
+          filtered[allTableNames[i]] = man.tables[allTableNames[i]];
+        }
+      }
+      var filteredOut = allTableNames.length - Object.keys(filtered).length;
+      if (filteredOut > 0) {
+        logger.info("Filtered " + filteredOut + " tables not in _tables whitelist");
+      }
+      man.tables = filtered;
+    }
+
     const tableCount = Object.keys(man.tables).length;
-    let recordCount = 0;
+    var recordCount = 0;
     Object.keys(man.tables).forEach(function(tableName) {
       recordCount += Object.keys(man.tables[tableName].records).length;
     });

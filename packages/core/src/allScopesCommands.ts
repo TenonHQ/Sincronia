@@ -151,51 +151,103 @@ async function processScope(
       logger.info("Found app: " + scopeApp.displayName);
     }
 
+    // Resolve the table whitelist and field overrides for this scope
+    var resolvedConfig = ConfigManager.resolveConfigForScope(scopeName);
+    var allowedTables = resolvedConfig.tables;
+
+    // Build a config safe for the ServiceNow API (no _ directive keys)
+    var apiConfig = Object.assign({}, config, {
+      includes: resolvedConfig.apiIncludes,
+      excludes: resolvedConfig.apiExcludes,
+    });
+
     logger.info("Downloading manifest for " + scopeName + "...");
     if (apiDelay > 0) {
       await delay(apiDelay);
     }
     const manifest = await unwrapSNResponse(
-      client.getManifest(scopeName, config, false), // Get structure first
+      client.getManifest(scopeName, apiConfig, false), // Get structure first
     );
 
-    logger.info("Downloading file contents for " + scopeName + "...");
-    const missingFiles: any = {};
+    // Client-side table filtering — only keep tables in the _tables whitelist
+    if (allowedTables && allowedTables.length > 0) {
+      var manifestTableNames = Object.keys(manifest.tables || {});
+      var filteredTables: any = {};
+      var skippedCount = 0;
 
-    // Build the missing files structure from the manifest
-    for (const tableName in manifest?.tables || {}) {
-      const table = manifest.tables[tableName];
-      missingFiles[tableName] = {};
+      for (var t = 0; t < manifestTableNames.length; t++) {
+        var tName = manifestTableNames[t];
+        if (allowedTables.indexOf(tName) !== -1) {
+          filteredTables[tName] = manifest.tables[tName];
+        } else {
+          skippedCount++;
+        }
+      }
 
-      for (const recordName in table.records || {}) {
-        const record = table.records[recordName];
-        missingFiles[tableName][record.sys_id] = record.files.map((f: any) => ({
-          name: f.name,
-          type: f.type,
-        }));
+      var keptCount = Object.keys(filteredTables).length;
+      if (skippedCount > 0) {
+        fileLogger.debug(
+          "Filtered " + skippedCount + " tables not in _tables whitelist for " + scopeName +
+          ". Keeping " + keptCount + " of " + manifestTableNames.length
+        );
+      }
+      logger.info(scopeName + ": " + keptCount + " tables match config (" + skippedCount + " filtered out)");
+      manifest.tables = filteredTables;
+    } else {
+      logger.warn("No _tables whitelist defined — writing ALL tables for " + scopeName);
+    }
+
+    // Build the missing files structure from the filtered manifest
+    var manifestTables = manifest.tables || {};
+    var allMissingFiles: any = {};
+    for (var tableName in manifestTables) {
+      var table = manifestTables[tableName];
+      allMissingFiles[tableName] = {};
+
+      for (var recordName in table.records || {}) {
+        var record = table.records[recordName];
+        allMissingFiles[tableName][record.sys_id] = record.files.map(function(f: any) {
+          return { name: f.name, type: f.type };
+        });
       }
     }
 
-    // Get the actual file contents
-    if (apiDelay > 0) {
-      await delay(apiDelay);
-    }
-    const filesWithContent = await unwrapSNResponse(
-      client.getMissingFiles(missingFiles, config.tableOptions || {}),
-    );
+    // Download file contents in chunks to avoid ServiceNow 500 errors on large payloads
+    var CHUNK_SIZE = 5;
+    var tableNames = Object.keys(allMissingFiles);
+    var totalChunks = Math.ceil(tableNames.length / CHUNK_SIZE);
+    logger.info("Downloading file contents for " + scopeName + " (" + tableNames.length + " tables in " + totalChunks + " batch" + (totalChunks !== 1 ? "es" : "") + ")...");
 
-    // Merge the content back into the manifest
-    for (const tableName in filesWithContent || {}) {
-      if (manifest.tables[tableName]) {
-        for (const recordName in filesWithContent[tableName].records || {}) {
-          const recordWithContent =
-            filesWithContent[tableName].records[recordName];
-          
-              const manifestRecord = Object.values(
-            manifest.tables[tableName].records,
-          ).find((r: any) => r.sys_id === recordWithContent.sys_id);
-          if (manifestRecord) {
-            manifestRecord.files = recordWithContent.files;
+    for (var chunkIdx = 0; chunkIdx < tableNames.length; chunkIdx += CHUNK_SIZE) {
+      var chunkTableNames = tableNames.slice(chunkIdx, chunkIdx + CHUNK_SIZE);
+      var chunkMissing: any = {};
+      for (var ci = 0; ci < chunkTableNames.length; ci++) {
+        chunkMissing[chunkTableNames[ci]] = allMissingFiles[chunkTableNames[ci]];
+      }
+
+      if (apiDelay > 0) {
+        await delay(apiDelay);
+      }
+
+      var batchNum = Math.floor(chunkIdx / CHUNK_SIZE) + 1;
+      fileLogger.debug("Downloading batch " + batchNum + "/" + totalChunks + " for " + scopeName + ": " + chunkTableNames.join(", "));
+
+      var chunkContent = await unwrapSNResponse(
+        client.getMissingFiles(chunkMissing, config.tableOptions || {}),
+      );
+
+      // Merge chunk content back into the manifest
+      for (var chunkTable in chunkContent || {}) {
+        if (manifest.tables[chunkTable]) {
+          for (var chunkRecName in chunkContent[chunkTable].records || {}) {
+            var recordWithContent = chunkContent[chunkTable].records[chunkRecName];
+            var manifestRecords = manifest.tables[chunkTable].records;
+            var matchingRecord = Object.values(manifestRecords).find(function(r: any) {
+              return r.sys_id === recordWithContent.sys_id;
+            });
+            if (matchingRecord) {
+              matchingRecord.files = recordWithContent.files;
+            }
           }
         }
       }
