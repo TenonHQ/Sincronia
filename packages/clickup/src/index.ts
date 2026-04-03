@@ -24,6 +24,7 @@ export {
   getLists,
   getSpaceLists,
   getListTasks,
+  findListByName,
 } from "./client";
 
 export type { ClickUpApi } from "./client";

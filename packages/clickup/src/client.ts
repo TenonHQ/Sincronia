@@ -24,6 +24,8 @@ import {
   GetListsParams,
   GetSpaceListsParams,
   GetListTasksParams,
+  FindListByNameParams,
+  FindListByNameResult,
 } from "./types";
 
 var CLICKUP_BASE_URL = "https://api.clickup.com";
@@ -406,6 +408,61 @@ export async function getSpaceLists(params: {
   }
 }
 
+// --- List Discovery ---
+
+/**
+ * @description Finds a ClickUp list by name across all spaces and folders in a team.
+ * @param params - Object with client, teamId, and list name to search for.
+ * @returns The matched list (case-insensitive) and all discovered lists.
+ */
+export async function findListByName(params: {
+  client: AxiosInstance;
+  teamId: string;
+  name: string;
+}): Promise<FindListByNameResult> {
+  try {
+    var allLists: ClickUpList[] = [];
+    var searchName = params.name.toLowerCase();
+
+    var spaces = await getSpaces({ client: params.client, teamId: params.teamId });
+
+    for (var s = 0; s < spaces.length; s++) {
+      var spaceId = spaces[s].id;
+
+      // Folderless lists
+      var spaceLists = await getSpaceLists({ client: params.client, spaceId: spaceId });
+      for (var sl = 0; sl < spaceLists.length; sl++) {
+        allLists.push(spaceLists[sl]);
+      }
+
+      // Folder lists
+      var folders = await getFolders({ client: params.client, spaceId: spaceId });
+      for (var f = 0; f < folders.length; f++) {
+        var folderLists = folders[f].lists || [];
+        for (var fl = 0; fl < folderLists.length; fl++) {
+          allLists.push(folderLists[fl]);
+        }
+      }
+    }
+
+    // Case-insensitive match
+    var matched: ClickUpList | null = null;
+    for (var i = 0; i < allLists.length; i++) {
+      if (allLists[i].name.toLowerCase() === searchName) {
+        matched = allLists[i];
+        break;
+      }
+    }
+
+    return {
+      list: matched,
+      allLists: allLists,
+    };
+  } catch (error) {
+    return handleApiError(error, "finding list '" + params.name + "'");
+  }
+}
+
 // --- List Tasks ---
 
 /**
@@ -616,6 +673,7 @@ export interface ClickUpApi {
   getLists(params: GetListsParams): Promise<ClickUpList[]>;
   getSpaceLists(params: GetSpaceListsParams): Promise<ClickUpList[]>;
   getListTasks(params: GetListTasksParams): Promise<ClickUpTask[]>;
+  findListByName(params: FindListByNameParams): Promise<FindListByNameResult>;
 }
 
 /**
@@ -709,6 +767,13 @@ export function createClickUpApi(config: ClickUpClientConfig): ClickUpApi {
         spaceIds: params.spaceIds,
         statuses: params.statuses,
         includeClosed: params.includeClosed,
+      });
+    },
+    findListByName: function (params: FindListByNameParams) {
+      return findListByName({
+        client: client,
+        teamId: params.teamId,
+        name: params.name,
       });
     },
   };

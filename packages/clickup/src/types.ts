@@ -225,6 +225,16 @@ export interface GetListTasksParams {
   includeClosed?: boolean;
 }
 
+export interface FindListByNameParams {
+  teamId: string;
+  name: string;
+}
+
+export interface FindListByNameResult {
+  list: ClickUpList | null;
+  allLists: ClickUpList[];
+}
+
 export interface ListTeamTasksParams {
   teamId: string;
   spaceIds?: string[];

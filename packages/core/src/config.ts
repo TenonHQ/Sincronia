@@ -357,6 +357,24 @@ export function resolveConfigForScope(scopeName: string): ResolvedScopeConfig {
   for (i = 0; i < scopeTables.length; i++) {
     tableSet[scopeTables[i]] = true;
   }
+  // Field overrides: global non-_ keys and scope-specific non-_ keys
+  var globalFieldOverrides = stripDirectiveKeys(cfgIncludes);
+  var scopeFieldOverrides = stripDirectiveKeys(scopeOverride);
+
+  // Implicitly add tables that have field overrides to the whitelist
+  var globalOverrideTables = Object.keys(globalFieldOverrides);
+  for (i = 0; i < globalOverrideTables.length; i++) {
+    if (!tableSet[globalOverrideTables[i]]) {
+      tableSet[globalOverrideTables[i]] = true;
+    }
+  }
+  var scopeOverrideTables = Object.keys(scopeFieldOverrides);
+  for (i = 0; i < scopeOverrideTables.length; i++) {
+    if (!tableSet[scopeOverrideTables[i]]) {
+      tableSet[scopeOverrideTables[i]] = true;
+    }
+  }
+
   var resolvedTables = Object.keys(tableSet);
 
   // Resolve excludes _tables
@@ -376,12 +394,25 @@ export function resolveConfigForScope(scopeName: string): ResolvedScopeConfig {
     });
   }
 
-  // Field overrides: global non-_ keys merged with scope-specific non-_ keys (scope wins)
-  var globalFieldOverrides = stripDirectiveKeys(cfgIncludes);
-  var scopeFieldOverrides = stripDirectiveKeys(scopeOverride);
-  var fieldOverrides: Sinc.TablePropMap = Object.assign({}, globalFieldOverrides, scopeFieldOverrides);
+  // Deep merge field overrides: global + scope, scope wins on conflicts per field
+  var fieldOverrides: Sinc.TablePropMap = {};
+  var allTableKeys: { [key: string]: boolean } = {};
+  var gKeys = Object.keys(globalFieldOverrides);
+  var sKeys = Object.keys(scopeFieldOverrides);
+  for (i = 0; i < gKeys.length; i++) { allTableKeys[gKeys[i]] = true; }
+  for (i = 0; i < sKeys.length; i++) { allTableKeys[sKeys[i]] = true; }
 
-  // API includes: field overrides only (no _ keys), with scope overrides merged in
+  for (var tblKey in allTableKeys) {
+    var globalEntry = globalFieldOverrides[tblKey];
+    var scopeEntry = scopeFieldOverrides[tblKey];
+    if (globalEntry && scopeEntry && typeof globalEntry === "object" && typeof scopeEntry === "object") {
+      fieldOverrides[tblKey] = Object.assign({}, globalEntry, scopeEntry);
+    } else {
+      fieldOverrides[tblKey] = scopeEntry || globalEntry;
+    }
+  }
+
+  // API includes: merged field overrides (no _ keys)
   var apiIncludes: Sinc.TablePropMap = Object.assign({}, fieldOverrides);
 
   // API excludes: strip _ keys
