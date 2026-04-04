@@ -381,7 +381,7 @@ export async function initScopesCommand(args: Sinc.SharedCmdArgs & { delay?: num
       logger.warn(failCount + " scope(s) failed — check errors above");
     }
     logger.info("Manifests: sinc.manifest.<scope>.json");
-    logger.success("Run 'npx sinc watchAllScopes' to start development");
+    logger.success("Run 'npx sinc watch' to start development");
   } catch (e) {
     logger.error("Error initializing scopes: " + e);
     throw e;

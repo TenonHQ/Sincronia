@@ -1,6 +1,5 @@
 import { Sinc, TSFIXME } from "@tenonhq/sincronia-types";
 import {
-  devCommand,
   refreshCommand,
   pushCommand,
   downloadCommand,
@@ -43,7 +42,24 @@ export async function initCommands() {
   };
 
   yargs
-    .command(["dev", "d"], "Start Development Mode", sharedOptions, devCommand)
+    .command(
+      ["watch", "w", "watchAllScopes"],
+      "Watch all scopes for file changes and sync to ServiceNow",
+      (cmdArgs) => {
+        cmdArgs.options({
+          ...sharedOptions,
+          noDashboard: {
+            type: "boolean",
+            default: false,
+            describe: "Skip launching the dashboard web UI",
+          },
+        });
+        return cmdArgs;
+      },
+      async (args: TSFIXME) => {
+        await watchAllScopesCommand(args as Sinc.WatchCmdArgs);
+      },
+    )
     .command(
       ["refresh", "r"],
       "Refresh Manifest and download new files since last refresh",
@@ -90,16 +106,16 @@ export async function initCommands() {
         });
         return cmdArgs;
       },
-      (args: TSFIXME) => {
-        pushCommand(args as Sinc.PushCmdArgs);
+      async (args: TSFIXME) => {
+        await pushCommand(args as Sinc.PushCmdArgs);
       },
     )
     .command(
       "download <scope>",
       "Downloads a scoped application's files from ServiceNow. Must specify a scope prefix for a scoped app.",
       sharedOptions,
-      (args: TSFIXME) => {
-        downloadCommand(args as Sinc.CmdDownloadArgs);
+      async (args: TSFIXME) => {
+        await downloadCommand(args as Sinc.CmdDownloadArgs);
       },
     )
     .command(
@@ -124,24 +140,6 @@ export async function initCommands() {
       initScopesCommand,
     )
     .command(
-      "watchAllScopes",
-      "Watch all scopes for file changes and display update set status",
-      (cmdArgs) => {
-        cmdArgs.options({
-          ...sharedOptions,
-          noDashboard: {
-            type: "boolean",
-            default: false,
-            describe: "Skip launching the dashboard web UI",
-          },
-        });
-        return cmdArgs;
-      },
-      (args: TSFIXME) => {
-        watchAllScopesCommand(args as Sinc.WatchCmdArgs);
-      },
-    )
-    .command(
       "build",
       "Build application files locally",
       (cmdArgs) => {
@@ -156,8 +154,8 @@ export async function initCommands() {
         });
         return cmdArgs;
       },
-      (args: TSFIXME) => {
-        buildCommand(args);
+      async (args: TSFIXME) => {
+        await buildCommand(args);
       },
     )
     .command(
@@ -402,9 +400,9 @@ export async function initCommands() {
         });
         return cmdArgs;
       },
-      (args: TSFIXME) => {
+      async (args: TSFIXME) => {
         if (args.subcommand === "pull") {
-          schemaPullCommand(args);
+          await schemaPullCommand(args);
         }
       },
     )
@@ -423,8 +421,8 @@ export async function initCommands() {
         });
         return cmdArgs;
       },
-      (args: TSFIXME) => {
-        initClaudeCommand(args);
+      async (args: TSFIXME) => {
+        await initClaudeCommand(args);
       },
     )
     .command(
