@@ -126,8 +126,20 @@ export async function initCommands() {
     .command(
       "watchAllScopes",
       "Watch all scopes for file changes and display update set status",
-      sharedOptions,
-      watchAllScopesCommand,
+      (cmdArgs) => {
+        cmdArgs.options({
+          ...sharedOptions,
+          noDashboard: {
+            type: "boolean",
+            default: false,
+            describe: "Skip launching the dashboard web UI",
+          },
+        });
+        return cmdArgs;
+      },
+      (args: TSFIXME) => {
+        watchAllScopesCommand(args as Sinc.WatchCmdArgs);
+      },
     )
     .command(
       "build",
