@@ -5,6 +5,7 @@ import { debounce } from "lodash";
 import { getFileContextFromPath } from "./FileUtils";
 import { Sinc } from "@tenonhq/sincronia-types";
 import { groupAppFiles, pushFiles } from "./appUtils";
+import { writeRecentEdit } from "./recentEdits";
 const DEBOUNCE_MS = 300;
 let pushQueue: string[] = [];
 let watcher: chokidar.FSWatcher | undefined = undefined;
@@ -21,6 +22,9 @@ const processQueue = debounce(async () => {
     const updateResults = await pushFiles(buildables);
     updateResults.forEach((res, index) => {
       logFilePush(fileContexts[index], res);
+      if (res.success) {
+        writeRecentEdit(fileContexts[index]);
+      }
     });
   }
 }, DEBOUNCE_MS);
