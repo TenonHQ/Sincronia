@@ -2,6 +2,7 @@ const express = require("express");
 const path = require("path");
 const axios = require("axios");
 const fs = require("fs");
+const RateLimit = require("express-rate-limit");
 
 // Everything resolves from CWD — run this from your Sincronia project directory
 const PROJECT_ROOT = process.cwd();
@@ -14,6 +15,12 @@ const PORT = process.env.DASHBOARD_PORT || 3456;
 
 const SN_INSTANCE = process.env.SN_INSTANCE || "";
 const SN_USER = process.env.SN_USER || "";
+
+// Rate limiter for recent-edits endpoint: max 100 requests per 15 minutes per IP
+const recentEditsLimiter = RateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+});
 const SN_PASSWORD = process.env.SN_PASSWORD || "";
 const BASE_URL = `https://${SN_INSTANCE}`;
 
@@ -190,7 +197,7 @@ app.get("/api/scopes", async (req, res) => {
 // GET /api/recent-edits — read local recent edits file, enrich with live SN data
 var RECENT_EDITS_FILE = path.join(PROJECT_ROOT, ".sinc-recent-edits.json");
 
-app.get("/api/recent-edits", async function (req, res) {
+app.get("/api/recent-edits", recentEditsLimiter, async function (req, res) {
   try {
     var edits = [];
     if (fs.existsSync(RECENT_EDITS_FILE)) {
