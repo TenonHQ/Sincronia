@@ -477,6 +477,38 @@ header h1 span {
   margin-top: 12px;
 }
 
+.quick-create {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.quick-create-input {
+  flex: 1;
+  font-family: inherit;
+  font-size: 12px;
+  padding: 5px 10px;
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.quick-create-input:focus {
+  border-color: var(--accent);
+}
+
+.quick-create-input::placeholder {
+  color: var(--text-muted);
+}
+
+.btn-small {
+  font-size: 11px;
+  padding: 5px 10px;
+}
+
 .btn {
   font-family: inherit;
   font-size: 12px;

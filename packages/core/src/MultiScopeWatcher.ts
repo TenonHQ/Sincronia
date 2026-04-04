@@ -6,6 +6,7 @@ import { Sinc } from "@tenonhq/sincronia-types";
 import { groupAppFiles, pushFiles } from "./appUtils";
 import { logger } from "./Logger";
 import * as path from "path";
+import * as fs from "fs";
 import * as ConfigManager from "./config";
 
 const DEBOUNCE_MS = 300;
@@ -17,9 +18,27 @@ interface ScopeWatcher {
   sourceDirectory: string;
 }
 
+interface ActiveTaskFile {
+  taskId: string;
+  taskName: string;
+  taskDescription: string;
+  updateSetName: string;
+  description: string;
+  taskUrl: string;
+  scopes: Record<string, { sys_id: string; name: string }>;
+}
+
+interface UpdateSetSelection {
+  sys_id: string;
+  name: string;
+}
+
+type UpdateSetConfig = Record<string, UpdateSetSelection>;
+
 class MultiScopeWatcherManager {
   private scopeWatchers: Map<string, ScopeWatcher> = new Map();
   private updateSetCheckInterval: NodeJS.Timeout | null = null;
+  private scopeLock: Promise<void> = Promise.resolve();
 
   async startWatchingAllScopes() {
     try {
@@ -106,6 +125,134 @@ class MultiScopeWatcherManager {
     this.scopeWatchers.set(scopeName, scopeWatcher);
   }
 
+  private async withScopeLock<T>(fn: () => Promise<T>): Promise<T> {
+    var resolve: () => void;
+    var next = new Promise<void>(function (r) { resolve = r; });
+    var prev = this.scopeLock;
+    this.scopeLock = next;
+    await prev;
+    try {
+      return await fn();
+    } finally {
+      resolve!();
+    }
+  }
+
+  private getUpdateSetConfig(): UpdateSetConfig {
+    var configPath = path.resolve(process.cwd(), ".sinc-update-sets.json");
+    try {
+      if (fs.existsSync(configPath)) {
+        return JSON.parse(fs.readFileSync(configPath, "utf8"));
+      }
+    } catch (e) {
+      // Ignore parse errors
+    }
+    return {};
+  }
+
+  private readActiveTask(): ActiveTaskFile | null {
+    var taskPath = path.resolve(process.cwd(), ".sinc-active-task.json");
+    try {
+      if (fs.existsSync(taskPath)) {
+        return JSON.parse(fs.readFileSync(taskPath, "utf8"));
+      }
+    } catch (e) {
+      // Ignore parse errors
+    }
+    return null;
+  }
+
+  private saveUpdateSetConfig(config: UpdateSetConfig): void {
+    var configPath = path.resolve(process.cwd(), ".sinc-update-sets.json");
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+  }
+
+  private async ensureUpdateSetForScope(scopeName: string): Promise<void> {
+    var config = this.getUpdateSetConfig();
+    if (config[scopeName]) {
+      return; // Already has an update set mapped
+    }
+
+    var activeTask = this.readActiveTask();
+    if (!activeTask) {
+      logger.warn(
+        `[${scopeName}] No update set configured and no active task to auto-create one. Pushing without update set routing.`
+      );
+      return;
+    }
+
+    var taskId = activeTask.taskId;
+    var updateSetName = activeTask.updateSetName;
+    var description = activeTask.description || "";
+
+    logger.info(`[${scopeName}] No update set found — auto-creating for task CU-${taskId}...`);
+
+    try {
+      var { defaultClient, unwrapSNResponse } = await import("./snClient");
+      var client = defaultClient();
+
+      // Switch to the target scope before creating
+      await client.changeScope(scopeName);
+
+      // Search for an existing update set matching this task in this scope
+      var query =
+        "application.scope=" + scopeName +
+        "^nameLIKECU-" + taskId +
+        "^state=in progress" +
+        "^ORDERBYDESCsys_created_on";
+
+      var searchResp = await client.client.get(
+        "api/now/table/sys_update_set", {
+          params: {
+            sysparm_query: query,
+            sysparm_fields: "sys_id,name,state,application,sys_created_on",
+            sysparm_limit: "10",
+          },
+        }
+      );
+
+      var existing = (searchResp.data && searchResp.data.result) || [];
+      var updateSet: { sys_id: string; name: string } | null = null;
+
+      if (existing.length > 0) {
+        updateSet = { sys_id: existing[0].sys_id, name: existing[0].name };
+        logger.info(`[${scopeName}] Found existing update set: ${updateSet.name}`);
+      } else {
+        // Create a new one (scope already switched above)
+        var createResp = await unwrapSNResponse(
+          client.createUpdateSet(updateSetName, undefined, description)
+        );
+        updateSet = { sys_id: createResp.sys_id, name: updateSetName };
+        logger.info(`[${scopeName}] Auto-created update set: ${updateSet.name}`);
+      }
+
+      // Switch the active update set on the instance
+      try {
+        await client.changeUpdateSet({ sysId: updateSet.sys_id });
+      } catch (changeErr) {
+        logger.warn(`[${scopeName}] Could not auto-switch update set on instance`);
+      }
+
+      // Persist the mapping
+      config = this.getUpdateSetConfig(); // Re-read in case another scope wrote
+      config[scopeName] = { sys_id: updateSet.sys_id, name: updateSet.name };
+      this.saveUpdateSetConfig(config);
+
+      // Also update the active task file
+      if (activeTask) {
+        if (!activeTask.scopes) {
+          activeTask.scopes = {};
+        }
+        activeTask.scopes[scopeName] = { sys_id: updateSet.sys_id, name: updateSet.name };
+        var taskPath = path.resolve(process.cwd(), ".sinc-active-task.json");
+        fs.writeFileSync(taskPath, JSON.stringify(activeTask, null, 2));
+      }
+    } catch (error) {
+      logger.error(`[${scopeName}] Failed to auto-create update set: ${error}`);
+      logger.warn(`[${scopeName}] Pushing without update set routing.`);
+    }
+  }
+
   private async processScopeQueue(scopeWatcher: ScopeWatcher) {
     if (scopeWatcher.pushQueue.length === 0) return;
 
@@ -115,32 +262,37 @@ class MultiScopeWatcherManager {
     logger.info(`[${scopeWatcher.scope}] Processing ${toProcess.length} file(s)...`);
 
     try {
-      // First, switch to the correct scope
-      await this.switchToScope(scopeWatcher.scope);
+      await this.withScopeLock(async () => {
+        // First, switch to the correct scope
+        await this.switchToScope(scopeWatcher.scope);
 
-      // Load the manifest for this specific scope
-      await this.loadScopeManifest(scopeWatcher.scope, scopeWatcher.sourceDirectory);
+        // Ensure an update set exists for this scope
+        await this.ensureUpdateSetForScope(scopeWatcher.scope);
 
-      // Process the files
-      const fileContexts = toProcess
-        .map(getFileContextFromPath)
-        .filter((ctx): ctx is Sinc.FileContext => !!ctx);
+        // Load the manifest for this specific scope
+        await this.loadScopeManifest(scopeWatcher.scope, scopeWatcher.sourceDirectory);
 
-      if (fileContexts.length === 0) {
-        logger.warn(`[${scopeWatcher.scope}] No valid file contexts found`);
-        return;
-      }
+        // Process the files
+        const fileContexts = toProcess
+          .map(getFileContextFromPath)
+          .filter((ctx): ctx is Sinc.FileContext => !!ctx);
 
-      const buildables = groupAppFiles(fileContexts);
-      const updateResults = await pushFiles(buildables);
-      
-      updateResults.forEach((res, index) => {
-        if (index < fileContexts.length) {
-          logFilePush(fileContexts[index], res);
+        if (fileContexts.length === 0) {
+          logger.warn(`[${scopeWatcher.scope}] No valid file contexts found`);
+          return;
         }
-      });
 
-      logger.success(`[${scopeWatcher.scope}] Successfully pushed ${updateResults.length} file(s)`);
+        const buildables = groupAppFiles(fileContexts);
+        const updateResults = await pushFiles(buildables);
+
+        updateResults.forEach((res, index) => {
+          if (index < fileContexts.length) {
+            logFilePush(fileContexts[index], res);
+          }
+        });
+
+        logger.success(`[${scopeWatcher.scope}] Successfully pushed ${updateResults.length} file(s)`);
+      });
     } catch (error) {
       logger.error(`[${scopeWatcher.scope}] Error processing queue: ${error}`);
     }

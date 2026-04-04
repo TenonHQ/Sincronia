@@ -120,6 +120,10 @@ function renderScopes() {
         '<button class="btn btn-clear" id="clear-btn-' + scope.scope + '" onclick="clearSelection(\'' + scope.scope + '\')" ' + (!scope.selected_update_set ? "disabled" : "") + ">Clear</button>" +
         activateHtml +
       "</div>" +
+      '<div class="quick-create">' +
+        '<input type="text" id="quick-name-' + scope.scope + '" placeholder="Update set name..." class="quick-create-input" onkeydown="if(event.key===\'Enter\')quickCreateUpdateSet(\'' + scope.scope + "', '" + scope.sys_id + "')\" />" +
+        '<button class="btn btn-primary btn-small" onclick="quickCreateUpdateSet(\'' + scope.scope + "', '" + scope.sys_id + "')\" " + (!scope.sys_id ? "disabled" : "") + ">Create</button>" +
+      "</div>" +
       (scope.selected_update_set ? '<div class="selected-badge">Active for push</div>' : "") +
       taskBadgeHtml;
 
@@ -279,6 +283,7 @@ async function createUpdateSet() {
   try {
     var data = await api("POST", "/api/update-set", {
       name: name,
+      scope: modalScopeKey,
       scope_sys_id: modalScopeSysId,
       description: document.getElementById("modal-description").value.trim(),
     });
@@ -321,6 +326,74 @@ async function createUpdateSet() {
   } finally {
     btn.disabled = false;
     btn.textContent = "Create";
+  }
+}
+
+// --- Quick Create (inline per-scope) ---
+
+async function quickCreateUpdateSet(scope, scopeSysId) {
+  var input = document.getElementById("quick-name-" + scope);
+  var name = input ? input.value.trim() : "";
+  if (!name) {
+    toast("Enter a name first", "error");
+    if (input) input.focus();
+    return;
+  }
+
+  // Find and disable the create button
+  var card = document.getElementById("card-" + scope);
+  var btn = card ? card.querySelector(".quick-create .btn") : null;
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Creating...";
+  }
+
+  try {
+    var data = await api("POST", "/api/update-set", {
+      name: name,
+      scope: scope,
+      scope_sys_id: scopeSysId,
+    });
+
+    var newSysId = data.update_set.sys_id;
+
+    await api("POST", "/api/select-update-set", {
+      scope: scope,
+      update_set_sys_id: newSysId,
+      update_set_name: name,
+    });
+
+    var scopeData = scopesData.find(function (s) { return s.scope === scope; });
+    if (scopeData) {
+      scopeData.selected_update_set = { sys_id: newSysId, name: name };
+    }
+
+    toast("Created: " + name);
+    if (input) input.value = "";
+
+    loadUpdateSets(scope, newSysId);
+
+    if (card) {
+      card.classList.add("has-selection");
+      var badge = card.querySelector(".selected-badge");
+      if (!badge) {
+        var b = document.createElement("div");
+        b.className = "selected-badge";
+        b.textContent = "Active for push";
+        card.appendChild(b);
+      }
+    }
+    var closeBtn = document.getElementById("close-btn-" + scope);
+    if (closeBtn) closeBtn.disabled = false;
+    var clearBtn = document.getElementById("clear-btn-" + scope);
+    if (clearBtn) clearBtn.disabled = false;
+  } catch (e) {
+    toast("Failed to create: " + e.message, "error");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Create";
+    }
   }
 }
 

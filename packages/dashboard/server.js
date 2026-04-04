@@ -205,13 +205,19 @@ app.get("/api/update-sets/:scope", async (req, res) => {
 // POST /api/update-set — create a new update set
 app.post("/api/update-set", async (req, res) => {
   try {
-    const { name, scope_sys_id, description } = req.body;
+    const { name, scope, scope_sys_id, description } = req.body;
     if (!name || typeof name !== "string" || name.trim() === "") {
       return res.status(400).json({ error: "name is required" });
     }
     if (!scope_sys_id || typeof scope_sys_id !== "string") {
       return res.status(400).json({ error: "scope_sys_id is required" });
     }
+
+    // Switch to the target scope before creating — ServiceNow uses session scope
+    if (scope) {
+      await snApi("get", "api/cadso/claude/changeScope?scope=" + encodeURIComponent(scope));
+    }
+
     const data = {
       name,
       state: "in progress",
@@ -446,6 +452,10 @@ async function findOrCreateUpdateSet(scope, scopeSysId, activeTask) {
 
   var created = false;
   if (!updateSet) {
+    // Switch to the target scope before creating — ServiceNow uses session scope,
+    // not the application field, when creating update sets via Table API
+    await snApi("get", "api/cadso/claude/changeScope?scope=" + encodeURIComponent(scope));
+
     var createData = {
       name: baseName,
       state: "in progress",
