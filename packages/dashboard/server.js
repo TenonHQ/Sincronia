@@ -187,6 +187,55 @@ app.get("/api/scopes", async (req, res) => {
   }
 });
 
+// GET /api/recent-edits — read local recent edits file, enrich with live SN data
+var RECENT_EDITS_FILE = path.join(PROJECT_ROOT, ".sinc-recent-edits.json");
+
+app.get("/api/recent-edits", async function (req, res) {
+  try {
+    var edits = [];
+    if (fs.existsSync(RECENT_EDITS_FILE)) {
+      edits = JSON.parse(fs.readFileSync(RECENT_EDITS_FILE, "utf8"));
+    }
+
+    if (edits.length === 0) {
+      return res.json({ edits: [] });
+    }
+
+    // For each edit, query sys_update_xml to get the live update set
+    var enriched = [];
+    for (var i = 0; i < edits.length; i++) {
+      var edit = edits[i];
+      var updateSetName = "unknown";
+      try {
+        var query = "name=" + edit.tableName + "_" + edit.sys_id + "^ORDERBYDESCsys_created_on";
+        var snResp = await snApi(
+          "get",
+          "api/now/table/sys_update_xml?sysparm_query=" + encodeURIComponent(query) +
+          "&sysparm_fields=update_set,update_set.name&sysparm_limit=1"
+        );
+        var results = snResp.data.result || [];
+        if (results.length > 0) {
+          updateSetName = results[0]["update_set.name"] || "unknown";
+        }
+      } catch (snErr) {
+        // If SN query fails, still show the entry with "unknown" update set
+      }
+
+      enriched.push({
+        tableName: edit.tableName,
+        name: edit.name,
+        scope: edit.scope,
+        updateSet: updateSetName,
+        timestamp: edit.timestamp,
+      });
+    }
+
+    res.json({ edits: enriched });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // GET /api/update-sets/:scope — list in-progress update sets for a scope
 app.get("/api/update-sets/:scope", async (req, res) => {
   try {
