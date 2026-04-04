@@ -10,6 +10,7 @@ import { defaultClient, unwrapSNResponse } from "./snClient";
 import { setLogLevel } from "./commands";
 import * as path from "path";
 import * as fs from "fs";
+import { spawn, ChildProcess } from "child_process";
 
 const fsp = fs.promises;
 
@@ -387,8 +388,10 @@ export async function initScopesCommand(args: Sinc.SharedCmdArgs & { delay?: num
   }
 }
 
-export async function watchAllScopesCommand(args: Sinc.SharedCmdArgs) {
+export async function watchAllScopesCommand(args: Sinc.WatchCmdArgs) {
   setLogLevel(args);
+
+  var dashboardProcess: ChildProcess | null = null;
 
   try {
     // First check if we have environment variables set
@@ -404,6 +407,11 @@ export async function watchAllScopesCommand(args: Sinc.SharedCmdArgs) {
       throw new Error("ServiceNow credentials not configured");
     }
 
+    // Start dashboard unless --no-dashboard flag is set
+    if (!args.noDashboard) {
+      dashboardProcess = startDashboardProcess();
+    }
+
     // Import and start the multi-scope watcher
     const { startMultiScopeWatching } = await import("./MultiScopeWatcher");
 
@@ -413,12 +421,53 @@ export async function watchAllScopesCommand(args: Sinc.SharedCmdArgs) {
     // Keep the process running
     process.on("SIGINT", async () => {
       logger.info("\nStopping multi-scope watch...");
+      if (dashboardProcess) {
+        dashboardProcess.kill("SIGINT");
+      }
       const { stopMultiScopeWatching } = await import("./MultiScopeWatcher");
       stopMultiScopeWatching();
       process.exit(0);
     });
   } catch (error) {
+    if (dashboardProcess) {
+      dashboardProcess.kill("SIGINT");
+    }
     logger.error("Failed to start multi-scope watch: " + error);
     throw error;
   }
+}
+
+function startDashboardProcess(): ChildProcess | null {
+  var serverPath: string;
+  try {
+    serverPath = require.resolve("@tenonhq/sincronia-dashboard/server.js");
+  } catch (e) {
+    logger.warn(
+      "Dashboard package not installed. Run: npm install @tenonhq/sincronia-dashboard",
+    );
+    return null;
+  }
+
+  var port = process.env.DASHBOARD_PORT || "3456";
+
+  var server = spawn("node", [serverPath], {
+    cwd: process.cwd(),
+    stdio: "ignore",
+    env: { ...process.env },
+    detached: false,
+  });
+
+  server.on("error", function (err) {
+    logger.warn("Failed to start dashboard: " + err.message);
+  });
+
+  logger.info("Dashboard started at http://localhost:" + port);
+
+  // Open browser after a short delay
+  setTimeout(function () {
+    var url = "http://localhost:" + port;
+    spawn("open", [url], { stdio: "ignore" });
+  }, 1000);
+
+  return server;
 }

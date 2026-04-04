@@ -16,6 +16,9 @@ export namespace Sinc {
   interface BuildCmdArgs extends SharedCmdArgs {
     diff: string;
   }
+  interface WatchCmdArgs extends SharedCmdArgs {
+    noDashboard: boolean;
+  }
   interface Config {
     sourceDirectory: string;
     buildDirectory: string;
