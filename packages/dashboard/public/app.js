@@ -686,6 +686,88 @@ async function autoActivateAllScopes() {
   }
 }
 
+// --- Recent Edits ---
+
+var recentEdits = [];
+var recentEditsInterval = null;
+
+async function loadRecentEdits() {
+  try {
+    var data = await api("GET", "/api/recent-edits");
+    recentEdits = data.edits || [];
+    renderRecentEdits();
+  } catch (e) {
+    // Silently fail — panel just stays hidden or stale
+  }
+}
+
+function timeAgo(timestamp) {
+  var now = new Date();
+  var then = new Date(timestamp);
+  var seconds = Math.floor((now - then) / 1000);
+  if (seconds < 60) return seconds + "s ago";
+  var minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return minutes + "m ago";
+  var hours = Math.floor(minutes / 60);
+  if (hours < 24) return hours + "h ago";
+  return Math.floor(hours / 24) + "d ago";
+}
+
+function renderRecentEdits() {
+  var panel = document.getElementById("recent-edits-panel");
+  var list = document.getElementById("recent-edits-list");
+
+  if (recentEdits.length === 0) {
+    panel.style.display = "none";
+    return;
+  }
+
+  panel.style.display = "";
+  list.innerHTML = "";
+
+  // Build a lookup of expected update sets from scopesData
+  var expectedUpdateSets = {};
+  scopesData.forEach(function (scope) {
+    if (scope.selected_update_set) {
+      expectedUpdateSets[scope.scope] = scope.selected_update_set.name;
+    }
+  });
+
+  recentEdits.forEach(function (edit) {
+    var row = document.createElement("div");
+    row.className = "recent-edit-row";
+
+    var nameEl = document.createElement("span");
+    nameEl.className = "recent-edit-name";
+    nameEl.textContent = edit.name;
+    nameEl.title = edit.tableName + "/" + edit.name;
+
+    var scopeEl = document.createElement("span");
+    scopeEl.className = "recent-edit-scope";
+    scopeEl.textContent = edit.scope;
+
+    var updateSetEl = document.createElement("span");
+    var isDefault = edit.updateSet.toLowerCase().indexOf("default") !== -1;
+    var expected = expectedUpdateSets[edit.scope];
+    var isMismatch = expected && edit.updateSet !== expected && edit.updateSet !== "unknown";
+    updateSetEl.className = "recent-edit-update-set" + (isDefault || isMismatch ? " warning" : "");
+    updateSetEl.textContent = edit.updateSet;
+    if (isMismatch && expected) {
+      updateSetEl.title = "Expected: " + expected;
+    }
+
+    var timeEl = document.createElement("span");
+    timeEl.className = "recent-edit-time";
+    timeEl.textContent = timeAgo(edit.timestamp);
+
+    row.appendChild(nameEl);
+    row.appendChild(scopeEl);
+    row.appendChild(updateSetEl);
+    row.appendChild(timeEl);
+    list.appendChild(row);
+  });
+}
+
 // --- Utility ---
 
 function escapeHtml(str) {
@@ -712,6 +794,7 @@ async function refreshDashboard() {
 
   try {
     await loadScopes();
+    await loadRecentEdits();
     if (clickupConfigured && activeTask) {
       await loadClickUpStatus();
     }
@@ -728,7 +811,11 @@ async function refreshDashboard() {
 
 loadConfig();
 loadScopes();
+loadRecentEdits();
 loadClickUpStatus();
+
+// Poll recent edits every 10 seconds
+recentEditsInterval = setInterval(loadRecentEdits, 60000);
 
 // Wire up sidebar toggle and close buttons
 document.getElementById("sidebar-toggle").addEventListener("click", toggleSidebar);

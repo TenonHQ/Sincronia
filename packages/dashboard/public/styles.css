@@ -669,3 +669,69 @@ header h1 span {
     transform: rotate(360deg);
   }
 }
+
+/* --- Recent Edits Panel --- */
+
+.recent-edits-panel {
+  margin-bottom: 24px;
+}
+
+.recent-edits-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 12px;
+  letter-spacing: 0.5px;
+}
+
+.recent-edits-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.recent-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.recent-edit-name {
+  font-weight: 600;
+  color: var(--accent);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.recent-edit-scope {
+  font-size: 10px;
+  color: var(--clickup-purple);
+  background: rgba(123, 104, 238, 0.12);
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.recent-edit-update-set {
+  font-size: 11px;
+  color: var(--success);
+  white-space: nowrap;
+}
+
+.recent-edit-update-set.warning {
+  color: var(--danger);
+}
+
+.recent-edit-time {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}

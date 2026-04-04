@@ -4,6 +4,7 @@ import { debounce } from "lodash";
 import { getFileContextFromPath } from "./FileUtils";
 import { Sinc } from "@tenonhq/sincronia-types";
 import { groupAppFiles, pushFiles } from "./appUtils";
+import { writeRecentEdit } from "./recentEdits";
 import { logger } from "./Logger";
 import * as path from "path";
 import * as ConfigManager from "./config";
@@ -137,6 +138,9 @@ class MultiScopeWatcherManager {
       updateResults.forEach((res, index) => {
         if (index < fileContexts.length) {
           logFilePush(fileContexts[index], res);
+          if (res.success) {
+            writeRecentEdit(fileContexts[index]);
+          }
         }
       });
 
