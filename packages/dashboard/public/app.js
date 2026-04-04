@@ -815,7 +815,7 @@ loadRecentEdits();
 loadClickUpStatus();
 
 // Poll recent edits every 10 seconds
-recentEditsInterval = setInterval(loadRecentEdits, 10000);
+recentEditsInterval = setInterval(loadRecentEdits, 60000);
 
 // Wire up sidebar toggle and close buttons
 document.getElementById("sidebar-toggle").addEventListener("click", toggleSidebar);
