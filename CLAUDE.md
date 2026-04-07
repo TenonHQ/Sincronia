@@ -15,7 +15,7 @@ Sincronia is a powerful development tool that enables modern ServiceNow developm
 nvm use 20
 
 # Install Sincronia globally
-npm install -g @sincronia/cli
+npm install -g @tenonhq/sincronia-core
 
 # Initialize a new project
 sinc init
@@ -66,12 +66,21 @@ sinc clickup             # ClickUp task management (subcommands: tasks, task, cr
 
 ### Core Components
 
-Sincronia is a Lerna monorepo with multiple packages:
+Sincronia is a Lerna monorepo with 13 packages (all published under `@tenonhq/sincronia-*`):
 
-- **@sincronia/cli** - Command-line interface
-- **@sincronia/core** - Core synchronization logic
-- **@sincronia/types** - TypeScript type definitions
-- **Build plugins** - Webpack, Babel, TypeScript support
+- **sincronia-core** — CLI + core synchronization logic (the `sinc` binary)
+- **sincronia-types** — TypeScript type definitions
+- **sincronia-babel-plugin** — Babel plugin
+- **sincronia-babel-plugin-remove-modules** — Strips imports/exports for ServiceNow
+- **sincronia-babel-preset-servicenow** — ServiceNow sanitizer preset
+- **sincronia-typescript-plugin** — TypeScript compilation plugin
+- **sincronia-webpack-plugin** — Webpack module bundling
+- **sincronia-sass-plugin** — SASS/SCSS compilation
+- **sincronia-eslint-plugin** — ESLint code quality
+- **sincronia-prettier-plugin** — Prettier formatting
+- **sincronia-clickup** — ClickUp API client for task management
+- **sincronia-dashboard** — Update Set Dashboard web UI
+- **sincronia-schema** — ServiceNow table schema fetcher
 
 ### How It Works
 
@@ -84,15 +93,28 @@ Sincronia is a Lerna monorepo with multiple packages:
 
 ```
 Sincronia/
-├── packages/              # Lerna packages
-│   ├── cli/              # CLI implementation
-│   ├── core/             # Core sync logic
-│   └── types/            # TypeScript definitions
-├── docs/                 # Documentation
-├── examples/             # Example configurations
-├── lerna.json           # Lerna configuration
-├── package.json         # Root package
-└── README.md            # Main documentation
+├── packages/                          # Lerna packages (13 packages)
+│   ├── core/                          # CLI + core sync logic
+│   ├── types/                         # TypeScript definitions
+│   ├── babel-plugin/                  # Babel plugin
+│   ├── babel-plugin-remove-modules/   # Import/export removal
+│   ├── babel-preset-servicenow/       # ServiceNow sanitizer
+│   ├── typescript-plugin/             # TypeScript plugin
+│   ├── webpack-plugin/                # Webpack plugin
+│   ├── sass-plugin/                   # SASS/SCSS plugin
+│   ├── eslint-plugin/                 # ESLint plugin
+│   ├── prettier-plugin/               # Prettier plugin
+│   ├── clickup/                       # ClickUp API client
+│   ├── dashboard/                     # Update Set Dashboard UI
+│   └── schema/                        # ServiceNow schema fetcher
+├── docs/                              # QA documentation
+├── skills/                            # Claude Code skills for Sincronia workflows
+├── Scripts/                           # Version bump scripts
+├── CHANGELOG.md                       # Release history
+├── tsconfig.json                      # TypeScript configuration
+├── lerna.json                         # Lerna configuration
+├── package.json                       # Root package
+└── README.md                          # Main documentation
 ```
 
 ## Config Architecture
@@ -159,13 +181,16 @@ See [ServiceNow/CLAUDE.md](../ServiceNow/CLAUDE.md) for the full table inventory
 
 ### Build Pipeline Configuration
 
-Sincronia supports modern JavaScript tooling:
+Sincronia supports modern JavaScript tooling via dedicated plugin packages:
 
-- **TypeScript**: Full type checking and transpilation
-- **Babel**: Modern JavaScript syntax support
-- **Webpack**: Module bundling and optimization
-- **ESLint**: Code quality enforcement
-- **Prettier**: Code formatting
+- **TypeScript**: Full type checking and transpilation (`@tenonhq/sincronia-typescript-plugin`)
+- **Babel**: Modern JavaScript syntax support (`@tenonhq/sincronia-babel-plugin`)
+- **Babel Remove Modules**: Strips imports/exports for ServiceNow compatibility (`@tenonhq/sincronia-babel-plugin-remove-modules`)
+- **Babel Preset ServiceNow**: Sanitizes code for the ServiceNow platform (`@tenonhq/sincronia-babel-preset-servicenow`)
+- **Webpack**: Module bundling and optimization (`@tenonhq/sincronia-webpack-plugin`)
+- **SASS**: SASS/SCSS stylesheet compilation (`@tenonhq/sincronia-sass-plugin`)
+- **ESLint**: Code quality enforcement (`@tenonhq/sincronia-eslint-plugin`)
+- **Prettier**: Code formatting (`@tenonhq/sincronia-prettier-plugin`)
 
 ### Plugin System
 
