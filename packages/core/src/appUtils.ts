@@ -660,10 +660,43 @@ export const checkScope = async (
   try {
     const man = ConfigManager.getManifest();
     if (man) {
-      const client = defaultClient();
-      let scopeObj;
+      // Detect multi-scope manifest (keys are scope names, no top-level .scope)
+      var isMultiScope = typeof man === "object" && !man.scope && !man.tables;
+
+      if (isMultiScope) {
+        // Multi-scope: session scope just needs to match any configured scope
+        var configuredScopes = Object.keys(man);
+        var client = defaultClient();
+        var scopeObj;
+        try {
+          scopeObj = await unwrapSNResponse(client.getCurrentScope());
+        } catch (scopeErr) {
+          logger.info("Scope check endpoint unavailable, assuming match for multi-scope project");
+          return { match: true, sessionScope: configuredScopes[0], manifestScope: configuredScopes[0] };
+        }
+        var sessionScope = scopeObj.scope;
+        var scopeMatch = configuredScopes.indexOf(sessionScope) !== -1;
+        logger.info("Current scope: " + sessionScope + ", Configured scopes: " + configuredScopes.join(", "));
+        if (scopeMatch) {
+          return { match: true, sessionScope: sessionScope, manifestScope: sessionScope };
+        } else if (swap && configuredScopes.length > 0) {
+          logger.info("Current scope (" + sessionScope + ") not in configured scopes. Swapping to " + configuredScopes[0] + "...\n");
+          var swappedScopeObj = await swapScope(configuredScopes[0]);
+          return {
+            match: configuredScopes.indexOf(swappedScopeObj.scope) !== -1,
+            sessionScope: swappedScopeObj.scope,
+            manifestScope: configuredScopes[0],
+          };
+        } else {
+          return { match: false, sessionScope: sessionScope, manifestScope: configuredScopes.join(", ") };
+        }
+      }
+
+      // Single-scope manifest
+      var singleClient = defaultClient();
+      var singleScopeObj;
       try {
-        scopeObj = await unwrapSNResponse(client.getCurrentScope());
+        singleScopeObj = await unwrapSNResponse(singleClient.getCurrentScope());
       } catch (scopeErr) {
         // getCurrentScope endpoint may not exist on this instance — skip scope check
         logger.info(
@@ -676,28 +709,28 @@ export const checkScope = async (
         };
       }
       logger.info(
-        `Current scope: ${scopeObj.scope}, Manifest scope: ${man.scope}`,
+        `Current scope: ${singleScopeObj.scope}, Manifest scope: ${man.scope}`,
       );
-      if (scopeObj.scope === man.scope) {
+      if (singleScopeObj.scope === man.scope) {
         return {
           match: true,
-          sessionScope: scopeObj.scope,
+          sessionScope: singleScopeObj.scope,
           manifestScope: man.scope,
         };
       } else if (swap) {
         logger.info(
-          `Current scope (${scopeObj.scope}) does not match manifest scope (${man.scope}). Swapping...\n`,
+          `Current scope (${singleScopeObj.scope}) does not match manifest scope (${man.scope}). Swapping...\n`,
         );
-        const swappedScopeObj = await swapScope(man.scope);
+        var singleSwapped = await swapScope(man.scope);
         return {
-          match: swappedScopeObj.scope === man.scope,
-          sessionScope: swappedScopeObj.scope,
+          match: singleSwapped.scope === man.scope,
+          sessionScope: singleSwapped.scope,
           manifestScope: man.scope,
         };
       } else {
         return {
           match: false,
-          sessionScope: scopeObj.scope,
+          sessionScope: singleScopeObj.scope,
           manifestScope: man.scope,
         };
       }
