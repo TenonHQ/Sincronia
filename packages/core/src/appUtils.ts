@@ -107,11 +107,13 @@ const processRecsInManTable = async (
 const processTablesInManifest = async (
   tables: SN.TableMap,
   forceWrite: boolean,
+  sourcePath?: string,
 ) => {
+  var basePath = sourcePath || ConfigManager.getSourcePath();
   const tableNames = Object.keys(tables);
   const tablePromises = tableNames.map((tableName) => {
     return processRecsInManTable(
-      path.join(ConfigManager.getSourcePath(), tableName),
+      path.join(basePath, tableName),
       tables[tableName],
       forceWrite,
     );
@@ -122,11 +124,12 @@ const processTablesInManifest = async (
 export const processManifest = async (
   manifest: SN.AppManifest,
   forceWrite = false,
+  sourcePath?: string,
 ): Promise<void> => {
   const tableCount = Object.keys(manifest.tables).length;
   fileLogger.debug("Processing manifest: " + (manifest.scope || "legacy") + " (" + tableCount + " tables)");
 
-  await processTablesInManifest(manifest.tables, forceWrite);
+  await processTablesInManifest(manifest.tables, forceWrite, sourcePath);
 
   if (manifest.scope) {
     await fUtils.writeScopeManifest(manifest.scope, manifest);
@@ -149,6 +152,9 @@ export const syncManifest = async (scope?: string) => {
       const client = defaultClient();
       const config = ConfigManager.getConfig();
 
+      // Resolve scope-specific source directory
+      var scopeSourcePath = ConfigManager.getSourcePathForScope(scope);
+
       const newManifest = await unwrapSNResponse(
         client.getManifest(scope, config),
       );
@@ -157,7 +163,7 @@ export const syncManifest = async (scope?: string) => {
       fileLogger.debug("Refreshed manifest for " + scope + ": " + refreshTableCount + " tables");
 
       await fUtils.writeScopeManifest(scope, newManifest);
-      await processMissingFiles(newManifest);
+      await processMissingFiles(newManifest, scopeSourcePath);
 
       // Update the in-memory manifest for this scope
       if (typeof curManifest === "object" && !curManifest.tables) {
@@ -291,12 +297,13 @@ const checkTablesForMissing = async (
 
 export const findMissingFiles = async (
   manifest: SN.AppManifest,
+  sourcePath?: string,
 ): Promise<SN.MissingFileTableMap> => {
   const missing: SN.MissingFileTableMap = {};
   const { tables } = manifest;
   const missingTableFunc = markFileMissing(missing);
   await checkTablesForMissing(
-    ConfigManager.getSourcePath(),
+    sourcePath || ConfigManager.getSourcePath(),
     tables,
     missingTableFunc,
   );
@@ -306,9 +313,10 @@ export const findMissingFiles = async (
 
 export const processMissingFiles = async (
   newManifest: SN.AppManifest,
+  sourcePath?: string,
 ): Promise<void> => {
   try {
-    const missing = await findMissingFiles(newManifest);
+    const missing = await findMissingFiles(newManifest, sourcePath);
     const missingTableCount = Object.keys(missing).length;
     if (missingTableCount > 0) {
       fileLogger.debug("Downloading missing files from " + missingTableCount + " tables");
@@ -321,7 +329,7 @@ export const processMissingFiles = async (
       client.getMissingFiles(missing, tableOptions),
     );
 
-    await processTablesInManifest(filesToProcess, false);
+    await processTablesInManifest(filesToProcess, false, sourcePath);
   } catch (e) {
     throw e;
   }
