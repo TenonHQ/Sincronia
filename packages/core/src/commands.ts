@@ -17,7 +17,7 @@ import { gitDiffToEncodedPaths } from "./gitUtils";
 import { encodedPathsToFilePaths } from "./FileUtils";
 
 async function scopeCheck(
-  successFunc: () => void,
+  successFunc: () => void | Promise<void>,
   swapScopes: boolean = false,
 ) {
   try {
@@ -27,7 +27,7 @@ async function scopeCheck(
       // Throw exception to register this as an error
       throw new Error();
     } else {
-      successFunc();
+      await successFunc();
     }
   } catch (e) {
     logger.error(
@@ -44,7 +44,7 @@ export function setLogLevel(args: Sinc.SharedCmdArgs) {
 
 export async function devCommand(args: Sinc.SharedCmdArgs) {
   setLogLevel(args);
-  scopeCheck(async () => {
+  await scopeCheck(async () => {
     startWatching(ConfigManager.getSourcePath());
     devModeLog();
 
@@ -63,7 +63,7 @@ export async function refreshCommand(
   log: boolean = true,
 ) {
   setLogLevel(args);
-  scopeCheck(async () => {
+  await scopeCheck(async () => {
     try {
       if (!log) setLogLevel({ logLevel: "warn" });
       fileLogger.debug("Syncing manifest from instance");
@@ -77,7 +77,7 @@ export async function refreshCommand(
 }
 export async function pushCommand(args: Sinc.PushCmdArgs): Promise<void> {
   setLogLevel(args);
-  scopeCheck(async () => {
+  await scopeCheck(async () => {
     try {
       const { updateSet, ci: skipPrompt, target, diff } = args;
       let encodedPaths;
@@ -253,7 +253,7 @@ async function getDeployPaths(): Promise<string[]> {
 
 export async function deployCommand(args: Sinc.SharedCmdArgs): Promise<void> {
   setLogLevel(args);
-  scopeCheck(async () => {
+  await scopeCheck(async () => {
     try {
       const targetServer = process.env.SN_INSTANCE || "";
       if (!targetServer) {

@@ -27,23 +27,39 @@ sinc configure
 ### Development Commands
 
 ```bash
-# Watch for changes and sync automatically
-sinc watch
-sinc watchAllScopes      # Watch all configured scopes
+# Watch all scopes for changes and sync automatically
+sinc watch               # Multi-scope watch (aliases: w, watchAllScopes)
 
 # Manual sync operations
 sinc push                # Push local changes to ServiceNow
-sinc pull                # Pull changes from ServiceNow
-sinc refresh             # Full refresh from ServiceNow
+sinc refresh             # Refresh manifest and download new files
+sinc download <scope>    # Download a full scope from ServiceNow
 
-# Development workflow
-sinc dev                 # Start development mode
-sinc build               # Build for production
-sinc deploy              # Deploy to ServiceNow
+# Build and deploy
+sinc build               # Build application files locally
+sinc deploy              # Deploy local build to ServiceNow
 
 # Status and debugging
-sinc status              # Check sync status
-sinc diff                # Show differences
+sinc status              # Check sync status and instance info
+
+# Scope and update set management
+sinc initScopes          # Initialize all scopes from config
+sinc createUpdateSet     # Create a new update set
+sinc switchUpdateSet     # Switch to an existing update set
+sinc listUpdateSets      # List in-progress update sets
+sinc currentUpdateSet    # Show the current active update set
+sinc changeScope         # Change to a different scope
+sinc currentScope        # Show the current active scope
+
+# Record management
+sinc create <table>      # Create a new record
+sinc delete <table>      # Delete a record
+
+# Tools
+sinc dashboard           # Launch the Update Set Dashboard web UI
+sinc schema pull         # Pull ServiceNow table schemas
+sinc init-claude         # Install Claude Code skills
+sinc clickup             # ClickUp task management (subcommands: tasks, task, create, update, comment, teams, setup, spaces, lists)
 ```
 
 ## Architecture
@@ -214,16 +230,16 @@ Sincronia's server-side operations are exposed via a **global-scoped Scripted RE
 1. Initialize configuration: `sinc init`
 2. Configure instance: `sinc configure`
 3. Set up manifest: `sinc pull --scope x_cadso_core`
-4. Start development: `sinc watch`
+4. Start development: `sinc watch` (watches all configured scopes)
 
 ### Managing Multiple Scopes
 
 ```bash
+# Watch all scopes simultaneously
+sinc watch
+
 # Work with specific scope
 sinc push --scope x_cadso_work
-
-# Watch multiple scopes
-sinc watchAllScopes
 
 # Refresh specific scope
 sinc refresh --scope x_cadso_core

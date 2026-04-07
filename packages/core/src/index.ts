@@ -2,10 +2,13 @@
 import { init } from "./bootstrap";
 import { fileLogger } from "./FileLogger";
 
-function main() {
+async function main() {
   // Initialize file logging as early as possible
   fileLogger.info("Starting Sincronia...");
-  init();
+  await init();
 }
 
-main();
+main().catch(function (e) {
+  fileLogger.error("Fatal error: " + String(e));
+  process.exit(1);
+});
