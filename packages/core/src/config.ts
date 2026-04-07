@@ -96,6 +96,15 @@ export function getSourcePath() {
   throw new Error("Error getting source path");
 }
 
+export function getSourcePathForScope(scopeName: string): string {
+  var cfg = getConfig();
+  var scopeConfig = cfg.scopes && cfg.scopes[scopeName];
+  if (scopeConfig && typeof scopeConfig === "object" && (scopeConfig as any).sourceDirectory) {
+    return path.resolve(getRootDir(), (scopeConfig as any).sourceDirectory);
+  }
+  return getSourcePath();
+}
+
 export function getBuildPath() {
   if (build_path) return build_path;
   throw new Error("Error getting build path");
