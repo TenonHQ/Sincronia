@@ -624,12 +624,20 @@ const swapServerScope = async (scopeId: string): Promise<void> => {
 /**
  * Creates a new update set and assigns it to the current user.
  * @param updateSetName - does not create update set if value is blank
+ * @param scope - optional scope name (e.g. x_cadso_work) to create the update set in
  */
-export const createAndAssignUpdateSet = async (updateSetName = "") => {
-  logger.info(`Update Set Name: ${updateSetName}`);
+export const createAndAssignUpdateSet = async (updateSetName = "", scope?: string) => {
+  logger.info(`Update Set Name: ${updateSetName}` + (scope ? ` (scope: ${scope})` : ""));
   const client = defaultClient();
+  var scopeSysId: string | undefined;
+  if (scope) {
+    var scopeResult = await unwrapSNResponse(client.getScopeId(scope));
+    if (scopeResult.length > 0) {
+      scopeSysId = scopeResult[0].sys_id;
+    }
+  }
   const { sys_id: updateSetSysId } = await unwrapSNResponse(
-    client.createUpdateSet(updateSetName),
+    client.createUpdateSet(updateSetName, scopeSysId),
   );
   const userSysId = await unwrapTableAPIFirstItem(
     client.getUserSysId(),

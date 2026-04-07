@@ -192,8 +192,10 @@ class MultiScopeWatcherManager {
       var { defaultClient, unwrapSNResponse } = await import("./snClient");
       var client = defaultClient();
 
-      // Switch to the target scope before creating
+      // Switch to the target scope and resolve its sys_id for update set creation
       await client.changeScope(scopeName);
+      var scopeIdResult = await unwrapSNResponse(client.getScopeId(scopeName));
+      var scopeSysId = scopeIdResult.length > 0 ? scopeIdResult[0].sys_id : undefined;
 
       // Search for an existing update set matching this task in this scope
       var query =
@@ -219,9 +221,9 @@ class MultiScopeWatcherManager {
         updateSet = { sys_id: existing[0].sys_id, name: existing[0].name };
         logger.info(`[${scopeName}] Found existing update set: ${updateSet.name}`);
       } else {
-        // Create a new one (scope already switched above)
+        // Create a new one with explicit scope sys_id
         var createResp = await unwrapSNResponse(
-          client.createUpdateSet(updateSetName, undefined, description)
+          client.createUpdateSet(updateSetName, scopeSysId, description)
         );
         updateSet = { sys_id: createResp.sys_id, name: updateSetName };
         logger.info(`[${scopeName}] Auto-created update set: ${updateSet.name}`);
