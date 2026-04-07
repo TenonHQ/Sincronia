@@ -1,6 +1,6 @@
 {
   "name": "@tenonhq/sincronia-eslint-plugin",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "ESLint plugin for Sincronia",
   "main": "./dist/index.js",
   "scripts": {
@@ -14,7 +14,7 @@
     "eslint": "8.51.0"
   },
   "devDependencies": {
-    "@tenonhq/sincronia-types": "^0.0.6",
+    "@tenonhq/sincronia-types": "^0.0.10",
     "@types/eslint": "^8.44.4",
     "@types/prettier": "^2.7.3",
     "typescript": "^5.2.2"

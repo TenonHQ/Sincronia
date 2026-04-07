@@ -1,6 +1,6 @@
 {
   "name": "@tenonhq/sincronia-schema",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "ServiceNow table schema fetcher and organizer for Sincronia",
   "main": "./dist/index.js",
   "scripts": {
@@ -15,8 +15,8 @@
     "chalk": "^4.1.2"
   },
   "devDependencies": {
-    "@tenonhq/sincronia-types": "^0.0.6",
-    "@types/node": "^20.8.4",
+    "@tenonhq/sincronia-types": "^0.0.10",
+    "@types/node": ">=20.8.4",
     "typescript": "^5.2.2"
   },
   "files": [

@@ -1,6 +1,6 @@
 {
   "name": "@tenonhq/sincronia-typescript-plugin",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "TypeScript plugin for Sincronia",
   "main": "./dist/index.js",
   "scripts": {
@@ -14,7 +14,7 @@
     "typescript": "^5.2.2"
   },
   "devDependencies": {
-    "@tenonhq/sincronia-types": "^0.0.6"
+    "@tenonhq/sincronia-types": "^0.0.10"
   },
   "files": [
     "dist"
