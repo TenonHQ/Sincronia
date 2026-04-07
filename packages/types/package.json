@@ -1,6 +1,6 @@
 {
   "name": "@tenonhq/sincronia-types",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "description": "Type Declarations for Sincronia",
   "main": "index.d.ts",
   "scripts": {
@@ -16,5 +16,8 @@
   "bugs": {
     "url": "https://github.com/tenon/sincronia/issues"
   },
-  "homepage": "https://github.com/tenon/sincronia#readme"
+  "homepage": "https://github.com/tenon/sincronia#readme",
+  "publishConfig": {
+    "access": "public"
+  }
 }

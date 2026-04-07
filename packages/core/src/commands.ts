@@ -118,6 +118,15 @@ export async function pushCommand(args: Sinc.PushCmdArgs): Promise<void> {
         }
       }
 
+      // Extract scope from file list for update set creation
+      var pushScope: string | undefined;
+      if (fileList.length > 0) {
+        var fieldKeys = Object.keys(fileList[0].fields);
+        if (fieldKeys.length > 0) {
+          pushScope = fileList[0].fields[fieldKeys[0]].scope;
+        }
+      }
+
       // Does not create update set if updateSetName is blank
       if (resolvedUpdateSet) {
         if (!skipPrompt) {
@@ -134,7 +143,7 @@ export async function pushCommand(args: Sinc.PushCmdArgs): Promise<void> {
           }
         }
 
-        const newUpdateSet = await AppUtils.createAndAssignUpdateSet(resolvedUpdateSet);
+        const newUpdateSet = await AppUtils.createAndAssignUpdateSet(resolvedUpdateSet, pushScope);
         logger.debug(
           `New Update Set Created(${newUpdateSet.name}) sys_id:${newUpdateSet.id}`,
         );
