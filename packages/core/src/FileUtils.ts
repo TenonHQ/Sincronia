@@ -268,10 +268,17 @@ function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function quoteEnvValue(value: string): string {
+  if (/[\s#"'\\]/.test(value)) {
+    return "\"" + value.replace(/\\/g, "\\\\").replace(/"/g, "\\\"").replace(/\n/g, "\\n") + "\"";
+  }
+  return value;
+}
+
 function mergeEnvLine(content: string, key: string, value: string): string {
   const escaped = escapeRegex(key);
   const regex = new RegExp("^" + escaped + "=.*$", "m");
-  const line = key + "=" + value;
+  const line = key + "=" + quoteEnvValue(value);
 
   if (regex.test(content)) {
     return content.replace(regex, line);
@@ -290,7 +297,6 @@ function readEnvFile(envPath: string): string {
     return "";
   }
 }
-
 /**
  * @description Writes a single env variable to a .env file, preserving existing values.
  * @param {Object} params - Parameters object.
