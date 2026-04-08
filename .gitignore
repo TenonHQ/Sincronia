@@ -71,3 +71,6 @@ junit.xml
 
 #DSstore
 .DS_Store
+
+# Sincronia runtime artifacts
+.sinc-recent-edits.json
