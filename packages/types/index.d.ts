@@ -182,6 +182,8 @@ export namespace Sinc {
     answers: Record<string, any>;
     rootDir: string;
     hasConfig: boolean;
+    inquirer: any;
+    chalk: any;
   }
 
   interface SNAPIResponse<T> {

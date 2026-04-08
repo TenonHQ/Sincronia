@@ -1,50 +1,6 @@
-import { SN, Sinc } from "@tenonhq/sincronia-types";
+import { Sinc } from "@tenonhq/sincronia-types";
 import inquirer from "inquirer";
-import * as ConfigManager from "./config";
-import * as AppUtils from "./appUtils";
-import fs from "fs";
-const fsp = fs.promises;
-import { logger } from "./Logger";
-import path from "path";
-import { snClient, unwrapSNResponse, defaultClient } from "./snClient";
 import { writeEnvVars } from "./FileUtils";
-
-export async function startWizard() {
-  let loginAnswers = await getLoginInfo();
-  try {
-    let { username, password, instance } = loginAnswers;
-    let instanceUrl = instance.replace("https://", "").replace("http://", "");
-    if (!instanceUrl.endsWith("/")) {
-      instanceUrl += `/`;
-    }
-    const client = snClient(instanceUrl, username, password);
-    const apps = await unwrapSNResponse(client.getAppList());
-    await setupDotEnv(loginAnswers);
-    let hasConfig = await checkConfig();
-    if (!hasConfig) {
-      logger.info("Generating config...");
-      await writeDefaultConfig(hasConfig);
-    }
-    let man = ConfigManager.getManifest(true);
-    if (!man) {
-      let selectedApp = await showAppList(apps);
-      if (!selectedApp) {
-        return;
-      }
-      logger.info("Downloading app...");
-      await downloadApp(loginAnswers, selectedApp);
-    }
-    logger.success(
-      "You are all set up 👍 Try running 'npx sinc dev' to begin development mode.",
-    );
-    await ConfigManager.loadConfigs();
-  } catch (e) {
-    logger.error(
-      "Failed to setup application. Check to see that your credentials are correct and you have the update set installed on your instance.",
-    );
-    return;
-  }
-}
 
 export async function getLoginInfo(): Promise<Sinc.LoginAnswers> {
   return await inquirer.prompt([
@@ -67,19 +23,6 @@ export async function getLoginInfo(): Promise<Sinc.LoginAnswers> {
   ]);
 }
 
-async function checkConfig(): Promise<boolean> {
-  try {
-    let checkConfig = ConfigManager.checkConfigPath();
-    if (!checkConfig) {
-      return false;
-    }
-    await fsp.access(checkConfig, fs.constants.F_OK);
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
-
 export async function setupDotEnv(answers: Sinc.LoginAnswers) {
   process.env.SN_USER = answers.username;
   process.env.SN_PASSWORD = answers.password;
@@ -92,52 +35,4 @@ export async function setupDotEnv(answers: Sinc.LoginAnswers) {
       { key: "SN_INSTANCE", value: answers.instance },
     ],
   });
-}
-
-async function writeDefaultConfig(hasConfig: boolean) {
-  try {
-    let pth;
-    if (hasConfig) pth = ConfigManager.getConfigPath();
-    else pth = path.join(process.cwd(), "sinc.config.js");
-    if (pth) {
-      await fsp.writeFile(pth, ConfigManager.getDefaultConfigFile());
-    }
-  } catch (e) {
-    throw e;
-  }
-}
-
-async function showAppList(apps: SN.App[]): Promise<string | undefined> {
-  let appSelection: Sinc.AppSelectionAnswer = await inquirer.prompt([
-    {
-      type: "list",
-      name: "app",
-      message: "Which app would you like to work with?",
-      choices: apps.map((app) => {
-        return {
-          name: `${app.displayName}(${app.scope})`,
-          value: app.scope,
-          short: app.displayName,
-        };
-      }),
-    },
-  ]);
-  return appSelection.app;
-}
-
-async function downloadApp(answers: Sinc.LoginAnswers, scope: string) {
-  try {
-    const client = defaultClient();
-    const config = ConfigManager.getConfig();
-    const man: any = await unwrapSNResponse(
-      client.getManifest(scope, config, true),
-    );
-    await AppUtils.processManifest(man);
-  } catch (e) {
-    let message;
-    if (e instanceof Error) message = e.message;
-    else message = String(e);
-    logger.error(message);
-    throw new Error("Failed to download files!");
-  }
 }

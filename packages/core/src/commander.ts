@@ -7,7 +7,9 @@ import {
   buildCommand,
   deployCommand,
   statusCommand,
+  setLogLevel,
 } from "./commands";
+import { runLogin } from "./initSystem/orchestrator";
 import { initScopesCommand, watchAllScopesCommand } from "./allScopesCommands";
 import {
   createUpdateSetCommand,
@@ -33,7 +35,6 @@ import {
   clickupSpacesCommand,
   clickupListsCommand,
 } from "./clickupCommands";
-import { loginCommand } from "./loginCommand";
 import yargs from "yargs";
 export async function initCommands() {
   const sharedOptions = {
@@ -155,7 +156,17 @@ export async function initCommands() {
         });
         return cmdArgs;
       },
-      loginCommand,
+      async function (args: TSFIXME) {
+        setLogLevel(args);
+        await runLogin({
+          logLevel: args.logLevel,
+          pluginName: args.plugin || undefined,
+          all: args.all || false,
+          instance: args.instance || undefined,
+          user: args.user || undefined,
+          password: args.password || undefined,
+        });
+      },
     )
     .command(
       "initScopes",
