@@ -32,10 +32,7 @@ function buildInitContext(plugins: Sinc.InitPlugin[]): Sinc.InitContext {
   }
 
   // Pull from process.env for keys declared by plugins but missing from .env
-  const pluginEnvKeys = plugins.flatMap(p => [
-    ...(p.login || []).map(h => h.envKey),
-    ...(p.configure || []).map(h => h.key),
-  ]);
+  const pluginEnvKeys = plugins.flatMap(p => (p.login || []).map(h => h.envKey));
   pluginEnvKeys.forEach(key => {
     if (process.env[key] && !env[key]) {
       env[key] = process.env[key] as string;
@@ -93,10 +90,7 @@ interface InquirerPromptConfig {
   validate?: (input: string) => boolean | string;
 }
 
-async function runLoginPhase(plugin: Sinc.InitPlugin, context: Sinc.InitContext): Promise<void> {
-  const hooks = plugin.login;
-  if (!hooks || hooks.length === 0) return;
-
+async function collectLoginHooks(hooks: Sinc.InitLoginHook[], context: Sinc.InitContext): Promise<void> {
   for (const hook of hooks) {
     const existingValue = context.env[hook.envKey] || "";
 
@@ -134,8 +128,74 @@ async function runLoginPhase(plugin: Sinc.InitPlugin, context: Sinc.InitContext)
     const answer = await inquirer.prompt([promptConfig]);
     context.env[hook.envKey] = answer.value.trim();
   }
+}
 
-  // Run per-hook validation if defined
+async function runLoginPhase(plugin: Sinc.InitPlugin, context: Sinc.InitContext): Promise<void> {
+  const hooks = plugin.login;
+  if (!hooks || hooks.length === 0) return;
+
+  // Core plugin: retry loop with specific error messages
+  if (plugin.name === "core") {
+    while (true) {
+      await collectLoginHooks(hooks, context);
+
+      // Run per-hook validation
+      let hookFailed = false;
+      for (const hook of hooks) {
+        if (hook.validate) {
+          const result = await hook.validate(context.env[hook.envKey], context);
+          if (result !== true) {
+            logger.error(chalk.red("✗ " + result));
+            hookFailed = true;
+            break;
+          }
+        }
+      }
+
+      if (hookFailed) {
+        const retry = await inquirer.prompt([{
+          type: "confirm",
+          name: "again",
+          message: "Try again?",
+          default: true,
+        }]);
+        if (!retry.again) {
+          throw new Error("Login cancelled");
+        }
+        context.env.SN_PASSWORD = "";
+        continue;
+      }
+
+      logger.info("Validating credentials...");
+      const coreResult = await validateCoreLogin(context);
+
+      if (coreResult === true) {
+        logger.success(chalk.green("✓ Connected to " + context.env.SN_INSTANCE));
+        return;
+      }
+
+      logger.error(chalk.red("✗ " + coreResult));
+      logger.info("");
+
+      const retry = await inquirer.prompt([{
+        type: "confirm",
+        name: "again",
+        message: "Try again?",
+        default: true,
+      }]);
+
+      if (!retry.again) {
+        throw new Error("Login cancelled");
+      }
+
+      // Clear password so it re-prompts; instance and user show as defaults
+      context.env.SN_PASSWORD = "";
+    }
+  }
+
+  // Non-core plugins: original behavior (no retry loop)
+  await collectLoginHooks(hooks, context);
+
   for (const hook of hooks) {
     if (hook.validate) {
       const result = await hook.validate(context.env[hook.envKey], context);
@@ -144,17 +204,6 @@ async function runLoginPhase(plugin: Sinc.InitPlugin, context: Sinc.InitContext)
         throw new Error("Validation failed for " + hook.envKey);
       }
     }
-  }
-
-  // Core plugin gets special post-login validation (all 3 credentials at once)
-  if (plugin.name === "core") {
-    logger.info("Validating credentials...");
-    const coreResult = await validateCoreLogin(context);
-    if (coreResult !== true) {
-      logger.error(chalk.red("✗ " + coreResult));
-      throw new Error("ServiceNow login failed");
-    }
-    logger.success(chalk.green("✓ Connected to " + context.env.SN_INSTANCE));
   }
 }
 

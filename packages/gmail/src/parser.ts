@@ -22,16 +22,26 @@ export function parseGmailIdentifier(input: string): ParsedGmailIdentifier {
 
   var cleaned = input.trim();
 
-  // Handle Gmail URLs — validate hostname to prevent spoofed URLs
-  if (cleaned.indexOf("http") === 0) {
+  // Handle Gmail URLs
+  if (cleaned.indexOf("http://") === 0 || cleaned.indexOf("https://") === 0) {
+    var parsedUrl: URL;
     try {
-      var parsedUrl = new URL(cleaned);
-      if (parsedUrl.hostname === "mail.google.com" || parsedUrl.hostname.endsWith(".mail.google.com")) {
-        return parseGmailUrl(cleaned, input);
-      }
-    } catch (e) {
-      // Not a valid URL — fall through to raw ID parsing
+      parsedUrl = new URL(cleaned);
+    } catch (_err) {
+      throw new Error(
+        "Could not parse Gmail identifier: '" + input +
+        "'. Expected a message ID, thread ID, or Gmail URL."
+      );
     }
+
+    if (parsedUrl.hostname === "mail.google.com") {
+      return parseGmailUrl(cleaned, input);
+    }
+
+    throw new Error(
+      "Could not parse Gmail identifier: '" + input +
+      "'. Expected a message ID, thread ID, or Gmail URL."
+    );
   }
 
   // Raw ID — Gmail message/thread IDs are hex strings (16+ chars)

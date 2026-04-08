@@ -50,8 +50,8 @@ export const corePlugin: Sinc.InitPlugin = {
       key: "app",
       label: "Selecting ServiceNow application",
       run: async (context: Sinc.InitContext): Promise<string | null> => {
-        const instanceUrl = normalizeInstance(context.env.SN_INSTANCE);
-        const client = snClient(instanceUrl, context.env.SN_USER, context.env.SN_PASSWORD);
+        const baseUrl = instanceBaseUrl(context.env.SN_INSTANCE);
+        const client = snClient(baseUrl, context.env.SN_USER, context.env.SN_PASSWORD);
 
         logger.info("Fetching application list...");
         const apps: SN.App[] = await unwrapSNResponse(client.getAppList());
@@ -139,8 +139,8 @@ export const corePlugin: Sinc.InitPlugin = {
 
     // Download application files — errors propagate to orchestrator
     logger.info("Downloading " + scope + "...");
-    const instanceUrl = normalizeInstance(context.env.SN_INSTANCE);
-    const client = snClient(instanceUrl, context.env.SN_USER, context.env.SN_PASSWORD);
+    const baseUrl = instanceBaseUrl(context.env.SN_INSTANCE);
+    const client = snClient(baseUrl, context.env.SN_USER, context.env.SN_PASSWORD);
     const config = ConfigManager.getConfig();
     const man: SN.AppManifest = await unwrapSNResponse(
       client.getManifest(scope, config, true),
@@ -169,14 +169,30 @@ export async function validateCoreLogin(context: Sinc.InitContext): Promise<true
   }
 
   const instanceUrl = normalizeInstance(instance);
+  const baseUrl = instanceBaseUrl(instance);
 
   try {
-    const client = snClient(instanceUrl, user, password);
+    const client = snClient(baseUrl, user, password);
     await unwrapSNResponse(client.getAppList());
     context.env.SN_INSTANCE = instanceUrl;
     return true;
-  } catch (e) {
-    return "Connection failed — check your instance URL, username, and password.";
+  } catch (e: any) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const status = e && e.response && e.response.status;
+
+    if (msg.includes("Invalid URL") || msg.includes("ENOTFOUND") || msg.includes("getaddrinfo")) {
+      return "Instance not found — check the URL (got: " + instanceUrl + ")";
+    }
+    if (status === 401 || msg.includes("401")) {
+      return "Invalid username or password.";
+    }
+    if (status === 403 || msg.includes("403")) {
+      return "Access denied — user may lack required roles.";
+    }
+    if (msg.includes("ECONNREFUSED") || msg.includes("ETIMEDOUT") || msg.includes("ECONNRESET")) {
+      return "Could not reach " + instanceUrl + " — check network connectivity.";
+    }
+    return "Connection failed: " + msg;
   }
 }
 
@@ -186,4 +202,8 @@ export function normalizeInstance(instance: string): string {
     url += "/";
   }
   return url;
+}
+
+function instanceBaseUrl(instance: string): string {
+  return "https://" + normalizeInstance(instance);
 }

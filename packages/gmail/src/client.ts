@@ -1,6 +1,7 @@
 import { gmail as gmailApi } from "@googleapis/gmail";
 import { OAuth2Client } from "google-auth-library";
 import { handleAuthError } from "@tenonhq/sincronia-google-auth";
+import sanitizeHtml from "sanitize-html";
 import {
   GmailEmail,
   GmailThread,
@@ -87,21 +88,16 @@ export async function searchEmails(params: {
     });
 
     var messages = response.data.messages || [];
-    var fetchPromises: Promise<GmailEmail>[] = [];
+    var emails: GmailEmail[] = [];
 
     for (var i = 0; i < messages.length; i++) {
-      fetchPromises.push(
-        params.client.users.messages.get({
-          userId: USER_ID,
-          id: messages[i].id as string,
-          format: "full",
-        }).then(function (msgResponse) {
-          return parseMessage(msgResponse.data);
-        })
-      );
+      var msgResponse = await params.client.users.messages.get({
+        userId: USER_ID,
+        id: messages[i].id as string,
+        format: "full",
+      });
+      emails.push(parseMessage(msgResponse.data));
     }
-
-    var emails: GmailEmail[] = await Promise.all(fetchPromises);
 
     return {
       emails: emails,
@@ -470,32 +466,20 @@ function decodeBase64Url(data: string): string {
 }
 
 function stripHtml(html: string): string {
-  var result = html
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/p>/gi, "\n\n")
-    .replace(/<\/div>/gi, "\n");
-
-  // Iteratively strip tags to handle nested/malformed markup like <scr<script>ipt>
-  var prev = "";
-  while (prev !== result) {
-    prev = result;
-    result = result.replace(/<[^>]+>/g, "");
-  }
-
-  // Decode entities — &amp; LAST to prevent double-unescaping (e.g., &amp;lt; → &lt; → <)
-  var entityMap: Record<string, string> = {
-    "&lt;": "<",
-    "&gt;": ">",
-    "&quot;": "\"",
-    "&#39;": "'",
-    "&nbsp;": " ",
-    "&amp;": "&",
-  };
-  result = result.replace(/&(?:lt|gt|quot|amp|nbsp|#39);/g, function (match) {
-    return entityMap[match] || match;
-  });
-
-  return result
+  // Basic HTML stripping — remove tags, decode common entities
+  return sanitizeHtml(
+    html
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/p>/gi, "\n\n")
+      .replace(/<\/div>/gi, "\n"),
+    { allowedTags: [], allowedAttributes: {} },
+  )
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, "\"")
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
