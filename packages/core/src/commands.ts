@@ -2,7 +2,6 @@ import { Sinc } from "@tenonhq/sincronia-types";
 import * as ConfigManager from "./config";
 import { startWatching } from "./Watcher";
 import * as AppUtils from "./appUtils";
-import { startWizard } from "./wizard";
 import { runInit } from "./initSystem/orchestrator";
 import { logger } from "./Logger";
 import { fileLogger } from "./FileLogger";

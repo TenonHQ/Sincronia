@@ -264,6 +264,33 @@ export const writeFileForce = fsp.writeFile;
 // .env File Utilities — merge-style writes (never destructive)
 // ============================================================================
 
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function mergeEnvLine(content: string, key: string, value: string): string {
+  const escaped = escapeRegex(key);
+  const regex = new RegExp("^" + escaped + "=.*$", "m");
+  const line = key + "=" + value;
+
+  if (regex.test(content)) {
+    return content.replace(regex, line);
+  }
+
+  if (content.length > 0 && content.charAt(content.length - 1) !== "\n") {
+    content += "\n";
+  }
+  return content + line + "\n";
+}
+
+function readEnvFile(envPath: string): string {
+  try {
+    return fs.readFileSync(envPath, "utf8");
+  } catch (e) {
+    return "";
+  }
+}
+
 /**
  * @description Writes a single env variable to a .env file, preserving existing values.
  * @param {Object} params - Parameters object.
@@ -272,27 +299,8 @@ export const writeFileForce = fsp.writeFile;
  * @param {string} [params.envPath] - Path to .env file. Defaults to process.cwd()/.env.
  */
 export function writeEnvVar(params: { key: string; value: string; envPath?: string }): void {
-  var resolvedPath = params.envPath || path.resolve(process.cwd(), ".env");
-  var content = "";
-
-  try {
-    content = fs.readFileSync(resolvedPath, "utf8");
-  } catch (e) {
-    // File doesn't exist yet — will create
-  }
-
-  var regex = new RegExp("^" + params.key + "=.*$", "m");
-  var line = params.key + "=" + params.value;
-
-  if (regex.test(content)) {
-    content = content.replace(regex, line);
-  } else {
-    if (content.length > 0 && content.charAt(content.length - 1) !== "\n") {
-      content = content + "\n";
-    }
-    content = content + line + "\n";
-  }
-
+  const resolvedPath = params.envPath || path.resolve(process.cwd(), ".env");
+  const content = mergeEnvLine(readEnvFile(resolvedPath), params.key, params.value);
   fs.writeFileSync(resolvedPath, content, "utf8");
 }
 
@@ -303,28 +311,12 @@ export function writeEnvVar(params: { key: string; value: string; envPath?: stri
  * @param {string} [params.envPath] - Path to .env file. Defaults to process.cwd()/.env.
  */
 export function writeEnvVars(params: { vars: Array<{ key: string; value: string }>; envPath?: string }): void {
-  var resolvedPath = params.envPath || path.resolve(process.cwd(), ".env");
-  var content = "";
+  const resolvedPath = params.envPath || path.resolve(process.cwd(), ".env");
+  let content = readEnvFile(resolvedPath);
 
-  try {
-    content = fs.readFileSync(resolvedPath, "utf8");
-  } catch (e) {
-    // File doesn't exist yet — will create
-  }
-
-  for (var i = 0; i < params.vars.length; i++) {
-    var regex = new RegExp("^" + params.vars[i].key + "=.*$", "m");
-    var line = params.vars[i].key + "=" + params.vars[i].value;
-
-    if (regex.test(content)) {
-      content = content.replace(regex, line);
-    } else {
-      if (content.length > 0 && content.charAt(content.length - 1) !== "\n") {
-        content = content + "\n";
-      }
-      content = content + line + "\n";
-    }
-  }
+  params.vars.forEach(({ key, value }) => {
+    content = mergeEnvLine(content, key, value);
+  });
 
   fs.writeFileSync(resolvedPath, content, "utf8");
 }

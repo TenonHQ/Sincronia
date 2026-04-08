@@ -2,11 +2,24 @@ import { createClickUpApi } from "./client";
 import type { ClickUpTeam } from "./types";
 
 /**
+ * Structural type matching Sinc.InitContext from sincronia-types.
+ * Defined locally so this package doesn't need a runtime dependency on sincronia-types.
+ */
+interface PluginContext {
+  env: Record<string, string>;
+  answers: Record<string, any>;
+  rootDir: string;
+  hasConfig: boolean;
+  inquirer: { prompt: (questions: any[]) => Promise<any> };
+  chalk: { green: (str: string) => string };
+}
+
+/**
  * @description ClickUp init plugin for Sincronia.
  * Discovered automatically by sincronia-core when this package is installed.
  * Adds ClickUp API token login and workspace selection to `sinc init`.
  */
-export var sincPlugin = {
+export const sincPlugin = {
   name: "clickup",
   displayName: "ClickUp",
   description: "Task management and PR linking",
@@ -26,10 +39,10 @@ export var sincPlugin = {
         "  3. Copy the token and paste it below",
       ],
       required: true,
-      validate: async function (value: string, context: any): Promise<true | string> {
-        var api = createClickUpApi({ token: value });
+      validate: async (value: string, context: PluginContext): Promise<true | string> => {
+        const api = createClickUpApi({ token: value });
         try {
-          var teams = await api.getTeams();
+          const teams = await api.getTeams();
           if (teams.length === 0) {
             return "Token is valid but no workspaces found. Check your ClickUp permissions.";
           }
@@ -47,8 +60,8 @@ export var sincPlugin = {
     {
       key: "CLICKUP_TEAM_ID",
       label: "Selecting ClickUp workspace",
-      run: async function (context: any): Promise<any> {
-        var teams: ClickUpTeam[] = context.answers._clickup_teams;
+      run: async (context: PluginContext): Promise<string | null> => {
+        const teams: ClickUpTeam[] = context.answers._clickup_teams;
         if (!teams || teams.length === 0) {
           return null;
         }
@@ -56,36 +69,25 @@ export var sincPlugin = {
         // Auto-select if only one workspace
         if (teams.length === 1) {
           context.env.CLICKUP_TEAM_ID = teams[0].id;
-          // Use dynamic require — inquirer is provided by sincronia-core at runtime
-          try {
-            var chalk = require("chalk");
-            console.log(chalk.green("✓ ClickUp workspace auto-selected: " + teams[0].name));
-          } catch (e) {
-            console.log("ClickUp workspace auto-selected: " + teams[0].name);
-          }
+          console.log(context.chalk.green("✓ ClickUp workspace auto-selected: " + teams[0].name));
           return teams[0].id;
         }
 
         // Multiple workspaces — prompt user to select
-        var inquirer = require("inquirer");
-        var promptFn = inquirer.prompt || (inquirer.default && inquirer.default.prompt);
-
-        var choices = teams.map(function (t: ClickUpTeam) {
-          var memberCount = t.members ? t.members.length : 0;
+        const choices = teams.map((t: ClickUpTeam) => {
+          const memberCount = t.members ? t.members.length : 0;
           return {
             name: t.name + " (" + memberCount + " members)",
             value: t.id,
           };
         });
 
-        var answer = await promptFn([
-          {
-            type: "list",
-            name: "teamId",
-            message: "Select a ClickUp workspace:",
-            choices: choices,
-          },
-        ]);
+        const answer = await context.inquirer.prompt([{
+          type: "list",
+          name: "teamId",
+          message: "Select a ClickUp workspace:",
+          choices,
+        }]);
 
         context.env.CLICKUP_TEAM_ID = answer.teamId;
         return answer.teamId;

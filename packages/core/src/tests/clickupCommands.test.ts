@@ -76,7 +76,15 @@ jest.mock("chalk", function () {
   };
 });
 
-jest.mock("fs");
+jest.mock("fs", function () {
+  var actual = jest.requireActual("fs");
+  return Object.assign({}, actual, {
+    readFileSync: jest.fn(),
+    writeFileSync: jest.fn(),
+    existsSync: jest.fn(),
+    promises: actual.promises,
+  });
+});
 jest.mock("child_process");
 
 // --- Imports (after mocks) ---
