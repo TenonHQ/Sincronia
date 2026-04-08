@@ -1,6 +1,7 @@
 import { gmail as gmailApi } from "@googleapis/gmail";
 import { OAuth2Client } from "google-auth-library";
 import { handleAuthError } from "@tenonhq/sincronia-google-auth";
+import sanitizeHtml from "sanitize-html";
 import {
   GmailEmail,
   GmailThread,
@@ -466,11 +467,13 @@ function decodeBase64Url(data: string): string {
 
 function stripHtml(html: string): string {
   // Basic HTML stripping — remove tags, decode common entities
-  return html
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/p>/gi, "\n\n")
-    .replace(/<\/div>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
+  return sanitizeHtml(
+    html
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/p>/gi, "\n\n")
+      .replace(/<\/div>/gi, "\n"),
+    { allowedTags: [], allowedAttributes: {} },
+  )
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
