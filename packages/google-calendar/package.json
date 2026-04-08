@@ -1,0 +1,41 @@
+{
+  "name": "@tenonhq/sincronia-google-calendar",
+  "version": "0.0.3",
+  "description": "Google Calendar API client for Sincronia — event management and agenda formatting",
+  "main": "./dist/index.js",
+  "scripts": {
+    "test": "jest",
+    "prepack": "tsc",
+    "version:bump": "node ./../../Scripts/bump-version.js ./package.json",
+    "postpublish": "npm run version:bump"
+  },
+  "author": "Multiple",
+  "license": "GPL-3.0",
+  "dependencies": {
+    "@googleapis/calendar": "^9.0.0"
+  },
+  "peerDependencies": {
+    "@tenonhq/sincronia-google-auth": ">=0.0.1"
+  },
+  "devDependencies": {
+    "@tenonhq/sincronia-google-auth": "^0.0.1",
+    "@types/jest": "^29.5.5",
+    "@types/node": ">=20.8.4",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
+    "typescript": "^5.2.2"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tenon/sincronia.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tenon/sincronia/issues"
+  }
+}
