@@ -83,6 +83,7 @@ const processRecsInManTable = async (
   tablePath: string,
   table: SN.TableConfig,
   forceWrite: boolean,
+  onRecordProcessed?: () => void,
 ) => {
   const { records } = table;
   const recKeys = Object.keys(records);
@@ -96,7 +97,9 @@ const processRecsInManTable = async (
     (acc: Promise<void>[], recKey: string) => {
       return [
         ...acc,
-        processFilesInManRec(recKeyToPath(recKey), records[recKey], forceWrite),
+        processFilesInManRec(recKeyToPath(recKey), records[recKey], forceWrite).then(function() {
+          if (onRecordProcessed) onRecordProcessed();
+        }),
       ];
     },
     [] as Promise<void>[],
@@ -104,10 +107,17 @@ const processRecsInManTable = async (
   return Promise.all(filePromises);
 };
 
+const countRecordsInTables = (tables: SN.TableMap): number => {
+  return Object.keys(tables).reduce(function(sum, tableName) {
+    return sum + Object.keys(tables[tableName].records).length;
+  }, 0);
+};
+
 const processTablesInManifest = async (
   tables: SN.TableMap,
   forceWrite: boolean,
   sourcePath?: string,
+  onRecordProcessed?: () => void,
 ) => {
   var basePath = sourcePath || ConfigManager.getSourcePath();
   const tableNames = Object.keys(tables);
@@ -116,6 +126,7 @@ const processTablesInManifest = async (
       path.join(basePath, tableName),
       tables[tableName],
       forceWrite,
+      onRecordProcessed,
     );
   });
   await Promise.all(tablePromises);
@@ -129,7 +140,13 @@ export const processManifest = async (
   const tableCount = Object.keys(manifest.tables).length;
   fileLogger.debug("Processing manifest: " + (manifest.scope || "legacy") + " (" + tableCount + " tables)");
 
-  await processTablesInManifest(manifest.tables, forceWrite, sourcePath);
+  var recordCount = countRecordsInTables(manifest.tables);
+  var progress = createScopeProgress(logger.getLogLevel(), {
+    scope: manifest.scope || "default",
+    total: recordCount,
+  });
+
+  await processTablesInManifest(manifest.tables, forceWrite, sourcePath, progress.tick);
 
   if (manifest.scope) {
     await fUtils.writeScopeManifest(manifest.scope, manifest);
@@ -318,9 +335,9 @@ export const processMissingFiles = async (
   try {
     const missing = await findMissingFiles(newManifest, sourcePath);
     const missingTableCount = Object.keys(missing).length;
-    if (missingTableCount > 0) {
-      fileLogger.debug("Downloading missing files from " + missingTableCount + " tables");
-    }
+    if (missingTableCount === 0) return;
+
+    fileLogger.debug("Downloading missing files from " + missingTableCount + " tables");
 
     const { tableOptions = {} } = ConfigManager.getConfig();
     const client = defaultClient();
@@ -329,7 +346,13 @@ export const processMissingFiles = async (
       client.getMissingFiles(missing, tableOptions),
     );
 
-    await processTablesInManifest(filesToProcess, false, sourcePath);
+    var recordCount = countRecordsInTables(filesToProcess);
+    var progress = createScopeProgress(logger.getLogLevel(), {
+      scope: newManifest.scope || "default",
+      total: recordCount,
+    });
+
+    await processTablesInManifest(filesToProcess, false, sourcePath, progress.tick);
   } catch (e) {
     throw e;
   }
@@ -502,6 +525,34 @@ export const pushFiles = async (
 
 export const summarizeRecord = (table: string, recDescriptor: string): string =>
   `${table} > ${recDescriptor}`;
+
+interface ScopeProgressResult {
+  tick: () => void;
+  setTotal: (n: number) => void;
+}
+
+const createScopeProgress = (
+  logLevel: string,
+  options: { scope: string; total: number },
+): ScopeProgressResult => {
+  if (logLevel !== "info" || options.total === 0) {
+    return { tick: function() {}, setTotal: function() {} };
+  }
+  var progBar = new ProgressBar(":scope :bar :current/:total (:percent)", {
+    total: options.total,
+    width: 40,
+    complete: "=",
+    incomplete: "-",
+  });
+  return {
+    tick: function() {
+      progBar.tick({ scope: options.scope });
+    },
+    setTotal: function(n) {
+      progBar.total = n;
+    },
+  };
+};
 
 const getProgTick = (
   logLevel: string,

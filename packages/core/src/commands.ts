@@ -211,7 +211,6 @@ export async function downloadCommand(args: Sinc.CmdDownloadArgs) {
     logger.info("Received " + tableCount + " tables, " + recordCount + " records");
     fileLogger.debug("Download manifest: " + tableCount + " tables, " + recordCount + " records");
 
-    logger.info("Writing files to disk...");
     await AppUtils.processManifest(man, true);
     logger.success("Download complete — " + recordCount + " records written");
   } catch (e) {
