@@ -210,7 +210,7 @@ function escapeCell(str: string): string {
   if (!str) {
     return "";
   }
-  return str.replace(/\|/g, "\\|").replace(/\n/g, " ");
+  return str.replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\n/g, " ");
 }
 
 function capitalize(str: string): string {

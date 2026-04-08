@@ -60,6 +60,22 @@ function findEnvFile(): string | null {
   return null;
 }
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function quoteEnvValue(value: string): string {
+  if (/[\s#"'\\]/.test(value)) {
+    return "\"" + value.replace(/\\/g, "\\\\").replace(/"/g, "\\\"").replace(/\n/g, "\\n") + "\"";
+  }
+  return value;
+}
+
 function writeTokenToEnv(token: string): boolean {
   var envPath = findEnvFile();
   if (!envPath) {
@@ -74,7 +90,7 @@ function writeTokenToEnv(token: string): boolean {
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i];
     if (line.indexOf("GOOGLE_REFRESH_TOKEN") === 0) {
-      updated.push("GOOGLE_REFRESH_TOKEN=" + token);
+      updated.push("GOOGLE_REFRESH_TOKEN=" + quoteEnvValue(token));
       found = true;
     } else {
       updated.push(line);
@@ -82,7 +98,7 @@ function writeTokenToEnv(token: string): boolean {
   }
 
   if (!found) {
-    updated.push("GOOGLE_REFRESH_TOKEN=" + token);
+    updated.push("GOOGLE_REFRESH_TOKEN=" + quoteEnvValue(token));
   }
 
   fs.writeFileSync(envPath, updated.join("\n"), "utf-8");
@@ -148,7 +164,7 @@ async function run(): Promise<void> {
 
       if (error) {
         res.writeHead(200, { "Content-Type": "text/html" });
-        res.end("<h1>Authorization failed</h1><p>Error: " + error + "</p><p>You can close this tab.</p>");
+        res.end("<h1>Authorization failed</h1><p>Error: " + escapeHtml(error) + "</p><p>You can close this tab.</p>");
         console.error("Authorization failed: " + error);
         server.close();
         reject(new Error("Authorization failed: " + error));
