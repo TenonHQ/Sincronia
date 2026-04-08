@@ -259,3 +259,72 @@ export const writeSNFileIfNotExists = writeSNFileCurry(true);
 export const writeSNFileForce = writeSNFileCurry(false);
 
 export const writeFileForce = fsp.writeFile;
+
+// ============================================================================
+// .env File Utilities — merge-style writes (never destructive)
+// ============================================================================
+
+/**
+ * @description Writes a single env variable to a .env file, preserving existing values.
+ * @param {Object} params - Parameters object.
+ * @param {string} params.key - The environment variable name.
+ * @param {string} params.value - The value to set.
+ * @param {string} [params.envPath] - Path to .env file. Defaults to process.cwd()/.env.
+ */
+export function writeEnvVar(params: { key: string; value: string; envPath?: string }): void {
+  var resolvedPath = params.envPath || path.resolve(process.cwd(), ".env");
+  var content = "";
+
+  try {
+    content = fs.readFileSync(resolvedPath, "utf8");
+  } catch (e) {
+    // File doesn't exist yet — will create
+  }
+
+  var regex = new RegExp("^" + params.key + "=.*$", "m");
+  var line = params.key + "=" + params.value;
+
+  if (regex.test(content)) {
+    content = content.replace(regex, line);
+  } else {
+    if (content.length > 0 && content.charAt(content.length - 1) !== "\n") {
+      content = content + "\n";
+    }
+    content = content + line + "\n";
+  }
+
+  fs.writeFileSync(resolvedPath, content, "utf8");
+}
+
+/**
+ * @description Writes multiple env variables to a .env file in a single read/write cycle.
+ * @param {Object} params - Parameters object.
+ * @param {Array<{key: string; value: string}>} params.vars - Array of key/value pairs to write.
+ * @param {string} [params.envPath] - Path to .env file. Defaults to process.cwd()/.env.
+ */
+export function writeEnvVars(params: { vars: Array<{ key: string; value: string }>; envPath?: string }): void {
+  var resolvedPath = params.envPath || path.resolve(process.cwd(), ".env");
+  var content = "";
+
+  try {
+    content = fs.readFileSync(resolvedPath, "utf8");
+  } catch (e) {
+    // File doesn't exist yet — will create
+  }
+
+  for (var i = 0; i < params.vars.length; i++) {
+    var regex = new RegExp("^" + params.vars[i].key + "=.*$", "m");
+    var line = params.vars[i].key + "=" + params.vars[i].value;
+
+    if (regex.test(content)) {
+      content = content.replace(regex, line);
+    } else {
+      if (content.length > 0 && content.charAt(content.length - 1) !== "\n") {
+        content = content + "\n";
+      }
+      content = content + line + "\n";
+    }
+  }
+
+  fs.writeFileSync(resolvedPath, content, "utf8");
+}

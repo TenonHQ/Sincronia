@@ -33,6 +33,7 @@ import {
   clickupSpacesCommand,
   clickupListsCommand,
 } from "./clickupCommands";
+import { loginCommand } from "./loginCommand";
 import yargs from "yargs";
 export async function initCommands() {
   const sharedOptions = {
@@ -120,9 +121,41 @@ export async function initCommands() {
     )
     .command(
       "init",
-      "Provisions an initial project for you",
+      "Set up Sincronia — discovers installed packages, authenticates, and configures your project",
       sharedOptions,
       initCommand,
+    )
+    .command(
+      "login [plugin]",
+      "Authenticate with ServiceNow and other integrations",
+      function (cmdArgs: TSFIXME) {
+        cmdArgs.positional("plugin", {
+          describe: "Plugin name to login (e.g., clickup). Omit for ServiceNow only.",
+          type: "string",
+        });
+        cmdArgs.options({
+          ...sharedOptions,
+          all: {
+            type: "boolean",
+            default: false,
+            describe: "Login to all detected integrations",
+          },
+          instance: {
+            type: "string",
+            describe: "ServiceNow instance URL (non-interactive)",
+          },
+          user: {
+            type: "string",
+            describe: "ServiceNow username (non-interactive)",
+          },
+          password: {
+            type: "string",
+            describe: "ServiceNow password (non-interactive)",
+          },
+        });
+        return cmdArgs;
+      },
+      loginCommand,
     )
     .command(
       "initScopes",

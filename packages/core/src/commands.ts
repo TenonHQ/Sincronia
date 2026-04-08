@@ -3,6 +3,7 @@ import * as ConfigManager from "./config";
 import { startWatching } from "./Watcher";
 import * as AppUtils from "./appUtils";
 import { startWizard } from "./wizard";
+import { runInit } from "./initSystem/orchestrator";
 import { logger } from "./Logger";
 import { fileLogger } from "./FileLogger";
 import {
@@ -221,7 +222,7 @@ export async function downloadCommand(args: Sinc.CmdDownloadArgs) {
 export async function initCommand(args: Sinc.SharedCmdArgs) {
   setLogLevel(args);
   try {
-    await startWizard();
+    await runInit({ logLevel: args.logLevel });
   } catch (e) {
     throw e;
   }

@@ -7,6 +7,7 @@ const fsp = fs.promises;
 import { logger } from "./Logger";
 import path from "path";
 import { snClient, unwrapSNResponse, defaultClient } from "./snClient";
+import { writeEnvVars } from "./FileUtils";
 
 export async function startWizard() {
   let loginAnswers = await getLoginInfo();
@@ -80,18 +81,17 @@ async function checkConfig(): Promise<boolean> {
 }
 
 export async function setupDotEnv(answers: Sinc.LoginAnswers) {
-  let data = `SN_USER=${answers.username}
-SN_PASSWORD=${answers.password}
-SN_INSTANCE=${answers.instance}
-  `;
   process.env.SN_USER = answers.username;
   process.env.SN_PASSWORD = answers.password;
   process.env.SN_INSTANCE = answers.instance;
-  try {
-    await fsp.writeFile(ConfigManager.getEnvPath(), data);
-  } catch (e) {
-    throw e;
-  }
+
+  writeEnvVars({
+    vars: [
+      { key: "SN_USER", value: answers.username },
+      { key: "SN_PASSWORD", value: answers.password },
+      { key: "SN_INSTANCE", value: answers.instance },
+    ],
+  });
 }
 
 async function writeDefaultConfig(hasConfig: boolean) {

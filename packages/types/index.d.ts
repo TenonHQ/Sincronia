@@ -144,6 +144,46 @@ export namespace Sinc {
   type FailPromiseResult = { status: "rejected"; reason: any };
   type PromiseResult<T> = SuccessPromiseResult<T> | FailPromiseResult;
 
+  // ============================================================================
+  // Init Plugin System
+  // Packages export a `sincPlugin` object conforming to InitPlugin.
+  // Core discovers these at runtime via node_modules scan.
+  // ============================================================================
+
+  interface InitPlugin {
+    name: string;
+    displayName: string;
+    description: string;
+    login?: InitLoginHook[];
+    configure?: InitConfigureHook[];
+    initialize?: (context: InitContext) => Promise<void>;
+  }
+
+  interface InitLoginHook {
+    envKey: string;
+    prompt: {
+      type: "input" | "password";
+      message: string;
+      mask?: string;
+    };
+    validate?: (value: string, context: InitContext) => Promise<true | string>;
+    instructions?: string[];
+    required?: boolean;
+  }
+
+  interface InitConfigureHook {
+    key: string;
+    label: string;
+    run: (context: InitContext) => Promise<any>;
+  }
+
+  interface InitContext {
+    env: Record<string, string>;
+    answers: Record<string, any>;
+    rootDir: string;
+    hasConfig: boolean;
+  }
+
   interface SNAPIResponse<T> {
     result: T;
   }
