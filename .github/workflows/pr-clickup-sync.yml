@@ -5,7 +5,7 @@ name: PR ClickUp Sync
 
 on:
   pull_request:
-    types: [opened, closed]
+    types: [opened, edited, closed]
   pull_request_review:
     types: [submitted]
 
@@ -28,8 +28,17 @@ jobs:
 
             if (event === "pull_request" && action === "opened") {
               prEvent = "opened";
+            } else if (event === "pull_request" && action === "edited") {
+              // Only re-process if the PR body was edited (not just the title)
+              if (context.payload.changes && context.payload.changes.body) {
+                prEvent = "opened";
+              } else {
+                shouldRun = "false";
+              }
             } else if (event === "pull_request_review" && context.payload.review && context.payload.review.state === "approved") {
               prEvent = "approved";
+            } else if (event === "pull_request_review" && context.payload.review && context.payload.review.state === "changes_requested") {
+              prEvent = "changes_requested";
             } else if (event === "pull_request" && action === "closed" && context.payload.pull_request.merged) {
               prEvent = "merged";
             } else if (event === "pull_request" && action === "closed" && !context.payload.pull_request.merged) {

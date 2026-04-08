@@ -1,0 +1,17 @@
+# Caller workflow template — deploy this to child repos as .github/workflows/branch-clickup-sync.yml
+# Triggers on branch creation and calls the reusable workflow in Craftsman.
+
+name: Branch ClickUp Sync
+
+on:
+  create:
+
+jobs:
+  sync:
+    if: github.event.ref_type == 'branch'
+    uses: TenonHQ/Craftsman/.github/workflows/branch-clickup-sync.yml@main
+    with:
+      branch_name: ${{ github.event.ref }}
+      repo_full_name: ${{ github.repository }}
+    secrets:
+      CLICKUP_API_TOKEN: ${{ secrets.CLICKUP_API_TOKEN }}
