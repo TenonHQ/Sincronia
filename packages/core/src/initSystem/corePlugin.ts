@@ -198,12 +198,12 @@ export async function validateCoreLogin(context: Sinc.InitContext): Promise<true
 
 export function normalizeInstance(instance: string): string {
   let url = instance.trim().replace("https://", "").replace("http://", "");
-  if (!url.endsWith("/")) {
-    url += "/";
+  if (url.endsWith("/")) {
+    url = url.slice(0, -1);
   }
   return url;
 }
 
 function instanceBaseUrl(instance: string): string {
-  return "https://" + normalizeInstance(instance);
+  return "https://" + normalizeInstance(instance) + "/";
 }
