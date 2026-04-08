@@ -11,6 +11,7 @@ import { setLogLevel } from "./commands";
 import * as path from "path";
 import * as fs from "fs";
 import { spawn, ChildProcess } from "child_process";
+import ProgressBar from "progress";
 
 const fsp = fs.promises;
 
@@ -45,7 +46,22 @@ async function processManifestForScope(
 
     const tables = manifest.tables || {};
     const tableNames = Object.keys(tables);
-    logger.info("Processing " + tableNames.length + " tables for " + sourceDirectory);
+
+    var totalRecords = 0;
+    for (var tn = 0; tn < tableNames.length; tn++) {
+      totalRecords += Object.keys(tables[tableNames[tn]].records || {}).length;
+    }
+
+    var scopeLabel = sourceDirectory.split(path.sep).pop() || "scope";
+    var progBar: ProgressBar | null = null;
+    if (logger.getLogLevel() === "info" && totalRecords > 0) {
+      progBar = new ProgressBar(":scope :bar :current/:total (:percent)", {
+        total: totalRecords,
+        width: 40,
+        complete: "=",
+        incomplete: "-",
+      });
+    }
 
     for (const tableName of tableNames) {
       const tableRecords = tables[tableName];
@@ -100,10 +116,10 @@ async function processManifestForScope(
             logger.error("Failed to write metadata: " + metadataFilePath);
           }
         }
+
+        if (progBar) progBar.tick({ scope: scopeLabel });
       }
     }
-
-    logger.info("Files written to " + sourceDirectory);
   } catch (error) {
     logger.error("Error processing files for " + sourceDirectory + ": " + error);
     throw error;
