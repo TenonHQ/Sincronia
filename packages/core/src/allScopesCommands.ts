@@ -425,7 +425,7 @@ export async function watchAllScopesCommand(args: Sinc.WatchCmdArgs) {
 
     // Start dashboard unless --no-dashboard flag is set
     if (!args.noDashboard) {
-      dashboardProcess = startDashboardProcess();
+      dashboardProcess = startDashboardProcess(args.port);
     }
 
     // Import and start the multi-scope watcher
@@ -453,7 +453,7 @@ export async function watchAllScopesCommand(args: Sinc.WatchCmdArgs) {
   }
 }
 
-function startDashboardProcess(): ChildProcess | null {
+function startDashboardProcess(portOverride?: number): ChildProcess | null {
   var serverPath: string;
   try {
     serverPath = require.resolve("@tenonhq/sincronia-dashboard/server.js");
@@ -464,12 +464,12 @@ function startDashboardProcess(): ChildProcess | null {
     return null;
   }
 
-  var port = process.env.DASHBOARD_PORT || "3456";
+  var port = portOverride ? String(portOverride) : (process.env.DASHBOARD_PORT || "3456");
 
   var server = spawn("node", [serverPath], {
     cwd: process.cwd(),
     stdio: "ignore",
-    env: { ...process.env },
+    env: { ...process.env, DASHBOARD_PORT: port },
     detached: false,
   });
 

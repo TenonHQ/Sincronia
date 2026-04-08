@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.73] - 2026-04-08
+
+### Fixed
+
+- `sinc init` no longer starts the dashboard server — plugin discovery was requiring the dashboard package which started Express as a side effect
+- Dashboard `server.js` now guarded with `require.main === module` to prevent startup on `require()`
+
+### Added
+
+- `--port` / `-p` flag for `sinc watch` and `sinc dashboard` — run multiple sessions on different ports (e.g. `sinc watch --port 3457`)
+- Port precedence: `--port` flag > `DASHBOARD_PORT` env var > default `3456`
+- `sincronia-dashboard` and `sincronia-schema` added to plugin discovery skip list
+
+### Changed
+
+- `@tenonhq/sincronia-types@0.0.11` — added `port` to `WatchCmdArgs`
+- `@tenonhq/sincronia-dashboard@0.0.8` — guarded `app.listen()` with `require.main` check
+- `@tenonhq/sincronia-core@0.0.73` — discovery skip list, `--port` flag
+
 ## [0.4.1] - 2020-07-06
 
 ### Added
