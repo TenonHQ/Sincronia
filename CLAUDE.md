@@ -14,52 +14,54 @@ Sincronia is a powerful development tool that enables modern ServiceNow developm
 # Node.js v20 LTS required
 nvm use 20
 
-# Install Sincronia globally
-npm install -g @tenonhq/sincronia-core
+# Create project and install as dev dependency
+mkdir my-sincronia-project && cd my-sincronia-project
+npm init
+npm i -D @tenonhq/sincronia-core
 
-# Initialize a new project
-sinc init
+# Initialize project (creates sinc.config.js)
+npx sinc init
 
-# Configure ServiceNow instance
-sinc configure
+# Configure ServiceNow instance (creates .env — do not commit)
+npx sinc configure
 ```
 
 ### Development Commands
 
 ```bash
 # Watch all scopes for changes and sync automatically
-sinc watch               # Multi-scope watch (aliases: w, watchAllScopes)
+npx sinc watch               # Multi-scope watch (aliases: w, watchAllScopes)
 
 # Manual sync operations
-sinc push                # Push local changes to ServiceNow
-sinc refresh             # Refresh manifest and download new files
-sinc download <scope>    # Download a full scope from ServiceNow
+npx sinc push                # Push local changes to ServiceNow
+npx sinc refresh             # Refresh manifest and download new files
+npx sinc download <scope>    # Download a full scope from ServiceNow
 
 # Build and deploy
-sinc build               # Build application files locally
-sinc deploy              # Deploy local build to ServiceNow
+npx sinc build               # Build application files locally
+npx sinc deploy              # Deploy local build to ServiceNow
 
 # Status and debugging
-sinc status              # Check sync status and instance info
+npx sinc status              # Check sync status and instance info
 
 # Scope and update set management
-sinc initScopes          # Initialize all scopes from config
-sinc createUpdateSet     # Create a new update set
-sinc switchUpdateSet     # Switch to an existing update set
-sinc listUpdateSets      # List in-progress update sets
-sinc currentUpdateSet    # Show the current active update set
-sinc changeScope         # Change to a different scope
-sinc currentScope        # Show the current active scope
+npx sinc initScopes          # Initialize all scopes from config
+npx sinc createUpdateSet     # Create a new update set
+npx sinc switchUpdateSet     # Switch to an existing update set
+npx sinc listUpdateSets      # List in-progress update sets
+npx sinc currentUpdateSet    # Show the current active update set
+npx sinc changeScope         # Change to a different scope
+npx sinc currentScope        # Show the current active scope
 
 # Record management
-sinc create <table>      # Create a new record
-sinc delete <table>      # Delete a record
+npx sinc create <table>      # Create a new record
+npx sinc delete <table>      # Delete a record
 
 # Tools
-sinc dashboard           # Launch the Update Set Dashboard web UI
-sinc schema pull         # Pull ServiceNow table schemas
-sinc init-claude         # Install Claude Code skills
-sinc clickup             # ClickUp task management (subcommands: tasks, task, create, update, comment, teams, setup, spaces, lists)
+npx sinc dashboard           # Launch the Update Set Dashboard web UI
+npx sinc schema pull         # Pull ServiceNow table schemas
+npx sinc init-claude         # Install Claude Code skills
+npx sinc clickup             # ClickUp task management (subcommands: tasks, task, create, update, comment, teams, setup, spaces, lists)
 ```
 
 ## Architecture
@@ -252,34 +254,35 @@ Sincronia's server-side operations are exposed via a **global-scoped Scripted RE
 
 ### Setting Up New Project
 
-1. Initialize configuration: `sinc init`
-2. Configure instance: `sinc configure`
-3. Set up manifest: `sinc pull --scope x_cadso_core`
-4. Start development: `sinc watch` (watches all configured scopes)
+1. Install as dev dependency: `npm i -D @tenonhq/sincronia-core`
+2. Initialize configuration: `npx sinc init`
+3. Configure instance: `npx sinc configure`
+4. Set up manifest: `npx sinc pull --scope x_cadso_core`
+5. Start development: `npx sinc watch` (watches all configured scopes)
 
 ### Managing Multiple Scopes
 
 ```bash
 # Watch all scopes simultaneously
-sinc watch
+npx sinc watch
 
 # Work with specific scope
-sinc push --scope x_cadso_work
+npx sinc push --scope x_cadso_work
 
 # Refresh specific scope
-sinc refresh --scope x_cadso_core
+npx sinc refresh --scope x_cadso_core
 ```
 
 ### Debugging Sync Issues
 
 1. Check debug logs: `sincronia-debug-*.log`
-2. Verify manifest: `sinc status`
-3. Test connection: `sinc test-connection`
-4. Review diffs: `sinc diff`
+2. Verify manifest: `npx sinc status`
+3. Test connection: `npx sinc test-connection`
+4. Review diffs: `npx sinc diff`
 
 ### Handling Conflicts
 
-- Use `sinc diff` to review changes
+- Use `npx sinc diff` to review changes
 - Back up before major operations
 - Use `--force` flag carefully
 - Maintain clean Git history
@@ -288,8 +291,8 @@ sinc refresh --scope x_cadso_core
 
 ### Development Workflow
 
-1. **Pull First**: Always `sinc refresh` before starting work
-2. **Watch Mode**: Use `sinc watch` during development
+1. **Pull First**: Always `npx sinc refresh` before starting work
+2. **Watch Mode**: Use `npx sinc watch` during development
 3. **Commit Often**: Regular Git commits for version control
 4. **Test Locally**: Validate changes before pushing
 5. **Document Changes**: Update manifests and documentation
@@ -320,7 +323,7 @@ sinc refresh --scope x_cadso_core
 2. **Sync Conflicts**
    - Review `sinc.manifest.json`
    - Check for concurrent edits
-   - Use `sinc diff` to investigate
+   - Use `npx sinc diff` to investigate
 
 3. **Build Errors**
    - Verify Node.js version (20 LTS)

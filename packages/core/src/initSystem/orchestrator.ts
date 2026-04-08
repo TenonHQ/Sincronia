@@ -32,7 +32,10 @@ function buildInitContext(plugins: Sinc.InitPlugin[]): Sinc.InitContext {
   }
 
   // Pull from process.env for keys declared by plugins but missing from .env
-  const pluginEnvKeys = plugins.flatMap(p => (p.login || []).map(h => h.envKey));
+  const pluginEnvKeys = plugins.flatMap(p => [
+    ...(p.login || []).map(h => h.envKey),
+    ...(p.configure || []).map(h => h.key),
+  ]);
   pluginEnvKeys.forEach(key => {
     if (process.env[key] && !env[key]) {
       env[key] = process.env[key] as string;
