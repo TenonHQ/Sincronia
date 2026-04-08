@@ -10,8 +10,7 @@ import inquirer from "inquirer";
 import chalk from "chalk";
 import { logger } from "./Logger";
 import { setLogLevel } from "./commands";
-import * as fs from "fs";
-import * as path from "path";
+import { writeEnvVar } from "./FileUtils";
 
 // --- Token & API Helpers ---
 
@@ -336,7 +335,7 @@ export async function clickupSetupCommand(args: any): Promise<void> {
     }
 
     // Write token to .env file
-    await writeEnvVar("CLICKUP_API_TOKEN", token);
+    writeEnvVar({ key: "CLICKUP_API_TOKEN", value: token });
 
     logger.info("");
     logger.success(
@@ -542,29 +541,3 @@ export function refineUpdateSetName(params: {
     .substring(0, 80);
 }
 
-// --- Env File Helper ---
-
-async function writeEnvVar(key: string, value: string): Promise<void> {
-  var envPath = path.resolve(process.cwd(), ".env");
-  var content = "";
-
-  try {
-    content = fs.readFileSync(envPath, "utf8");
-  } catch (e) {
-    // File doesn't exist yet — will create
-  }
-
-  var regex = new RegExp("^" + key + "=.*$", "m");
-  var line = key + "=" + value;
-
-  if (regex.test(content)) {
-    content = content.replace(regex, line);
-  } else {
-    if (content.length > 0 && content.charAt(content.length - 1) !== "\n") {
-      content = content + "\n";
-    }
-    content = content + line + "\n";
-  }
-
-  fs.writeFileSync(envPath, content, "utf8");
-}

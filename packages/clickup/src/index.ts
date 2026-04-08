@@ -40,6 +40,9 @@ export {
 // URL/ID parsing
 export { parseClickUpIdentifier } from "./parser";
 
+// Init plugin — discovered automatically by sincronia-core
+export { sincPlugin } from "./plugin";
+
 // Type definitions
 export type {
   ClickUpClientConfig,
