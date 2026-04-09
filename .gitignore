@@ -74,3 +74,6 @@ junit.xml
 
 # Sincronia runtime artifacts
 .sinc-recent-edits.json
+
+# Claude Code ephemeral worktrees
+.claude/worktrees/
