@@ -2,7 +2,7 @@ import { Sinc, SN } from "@tenonhq/sincronia-types";
 import { snClient, unwrapSNResponse } from "../snClient";
 import { logger } from "../Logger";
 import * as ConfigManager from "../config";
-import * as AppUtils from "../appUtils";
+import { processScope } from "../allScopesCommands";
 import inquirer from "inquirer";
 import chalk from "chalk";
 import fs from "fs";
@@ -47,52 +47,121 @@ export const corePlugin: Sinc.InitPlugin = {
 
   configure: [
     {
-      key: "app",
-      label: "Selecting ServiceNow application",
-      run: async (context: Sinc.InitContext): Promise<string | null> => {
-        const baseUrl = instanceBaseUrl(context.env.SN_INSTANCE);
-        const client = snClient(baseUrl, context.env.SN_USER, context.env.SN_PASSWORD);
+      key: "apps",
+      label: "Selecting ServiceNow applications",
+      run: async (context: Sinc.InitContext): Promise<string[] | null> => {
+        var baseUrl = instanceBaseUrl(context.env.SN_INSTANCE);
+        var client = snClient(baseUrl, context.env.SN_USER, context.env.SN_PASSWORD);
 
         logger.info("Fetching application list...");
-        const apps: SN.App[] = await unwrapSNResponse(client.getAppList());
+        var apps: SN.App[] = await unwrapSNResponse(client.getAppList());
 
         if (apps.length === 0) {
           logger.warn("No applications found on this instance.");
           return null;
         }
 
-        const choices = apps.map((app: SN.App) => ({
-          name: app.displayName + " (" + app.scope + ")",
-          value: app.scope,
-          short: app.displayName,
-        }));
+        // Pre-check scopes that exist in the current config
+        var existingScopes = new Set<string>();
+        if (context.hasConfig) {
+          try {
+            var existingConfig = require(path.join(context.rootDir, "sinc.config.js"));
+            if (existingConfig.scopes) {
+              Object.keys(existingConfig.scopes).forEach(function(s) {
+                existingScopes.add(s);
+              });
+            }
+          } catch (e) {
+            // ignore — no existing config or malformed
+          }
+        }
 
-        const answer = await inquirer.prompt([{
-          type: "list",
-          name: "app",
-          message: "Which app would you like to work with?",
-          choices,
+        var choices = apps.map(function(app: SN.App) {
+          return {
+            name: app.displayName + " (" + app.scope + ")",
+            value: app.scope,
+            short: app.displayName,
+            checked: existingScopes.has(app.scope),
+          };
+        });
+
+        var answer = await inquirer.prompt([{
+          type: "checkbox",
+          name: "apps",
+          message: "Which apps would you like to work with? (space to select, enter to confirm)",
+          choices: choices,
+          validate: function(input: string[]) {
+            if (input.length === 0) return "Select at least one application.";
+            return true;
+          },
         }]);
 
-        context.answers.selectedScope = answer.app;
+        var selectedScopes: string[] = answer.apps;
+        context.answers.selectedScopes = selectedScopes;
+        context.answers.selectedScope = selectedScopes[0]; // backward compat
         context.answers.apps = apps;
-        return answer.app;
+
+        // Prompt for source directory per selected scope
+        var scopeDirectories: Record<string, string> = {};
+        logger.info("");
+        logger.info(chalk.bold("  Source directories:"));
+
+        for (var i = 0; i < selectedScopes.length; i++) {
+          var scope = selectedScopes[i];
+          var app = apps.find(function(a: SN.App) { return a.scope === scope; });
+          var displayName = app ? app.displayName : scope;
+
+          // Check if existing config already has a sourceDirectory for this scope
+          var existingDir = "";
+          if (existingScopes.has(scope)) {
+            try {
+              var cfgScopes = require(path.join(context.rootDir, "sinc.config.js")).scopes;
+              if (cfgScopes && cfgScopes[scope] && cfgScopes[scope].sourceDirectory) {
+                existingDir = cfgScopes[scope].sourceDirectory;
+              }
+            } catch (e) {
+              // ignore
+            }
+          }
+
+          // Suggest a friendly name from displayName, or use existing
+          var suggestedDir = existingDir || ("src/" + displayName.replace(/\s+/g, ""));
+
+          var dirAnswer = await inquirer.prompt([{
+            type: "input",
+            name: "dir",
+            message: scope + ":",
+            default: suggestedDir,
+          }]);
+
+          scopeDirectories[scope] = dirAnswer.dir;
+        }
+
+        context.answers.scopeDirectories = scopeDirectories;
+        return selectedScopes;
       },
     },
   ],
 
   initialize: async (context: Sinc.InitContext): Promise<void> => {
-    const scope = context.answers.selectedScope;
-    if (!scope) {
-      logger.warn("No application selected — skipping initialization.");
-      return;
+    var selectedScopes: string[] = context.answers.selectedScopes || [];
+    if (selectedScopes.length === 0) {
+      // Backward compat: single scope from old flow
+      if (context.answers.selectedScope) {
+        selectedScopes = [context.answers.selectedScope];
+      } else {
+        logger.warn("No applications selected — skipping initialization.");
+        return;
+      }
     }
 
-    const rootDir = context.rootDir;
-    const configPath = path.join(rootDir, "sinc.config.js");
+    var rootDir = context.rootDir;
+    var configPath = path.join(rootDir, "sinc.config.js");
+    var scopeDirectories: Record<string, string> = context.answers.scopeDirectories || {};
 
-    // Write or merge sinc.config.js
-    let hasExistingConfig = false;
+    // Write or preserve sinc.config.js
+    var configAction = context.answers.configAction || "keep";
+    var hasExistingConfig = false;
     try {
       fs.accessSync(configPath, fs.constants.F_OK);
       hasExistingConfig = true;
@@ -100,9 +169,16 @@ export const corePlugin: Sinc.InitPlugin = {
       // No existing config
     }
 
-    if (!hasExistingConfig) {
+    if (!hasExistingConfig || configAction === "replace") {
       logger.info("Generating sinc.config.js...");
-      fs.writeFileSync(configPath, ConfigManager.getDefaultConfigFile(), "utf8");
+      var scopeEntries = selectedScopes.map(function(scope) {
+        return {
+          scope: scope,
+          sourceDirectory: scopeDirectories[scope] || ("src/" + scope),
+        };
+      });
+      fs.writeFileSync(configPath, ConfigManager.generateConfigFile({ scopes: scopeEntries }), "utf8");
+      logger.success(chalk.green("✓ Generated sinc.config.js with " + selectedScopes.length + " scope(s)"));
     } else {
       logger.info("sinc.config.js already exists — preserving configuration.");
     }
@@ -114,44 +190,86 @@ export const corePlugin: Sinc.InitPlugin = {
       logger.warn("Config reload incomplete — this is expected during first-time init.");
     }
 
-    // Check if manifest already exists for this scope
-    const manifestPath = path.join(rootDir, "sinc.manifest." + scope + ".json");
-    let hasManifest = false;
-    try {
-      fs.accessSync(manifestPath, fs.constants.F_OK);
-      hasManifest = true;
-    } catch (e) {
-      // No existing manifest
-    }
+    // Check which scopes already have manifests
+    var scopesWithManifests: string[] = [];
+    var scopesToDownload: string[] = [];
 
-    if (hasManifest) {
-      const redownload = await inquirer.prompt([{
-        type: "confirm",
-        name: "confirmed",
-        message: "Manifest for " + scope + " already exists. Re-download?",
-        default: false,
-      }]);
-      if (!redownload.confirmed) {
-        logger.info("Skipping download for " + scope);
-        return;
+    for (var i = 0; i < selectedScopes.length; i++) {
+      var scope = selectedScopes[i];
+      var manifestPath = path.join(rootDir, "sinc.manifest." + scope + ".json");
+      var hasManifest = false;
+      try {
+        fs.accessSync(manifestPath, fs.constants.F_OK);
+        hasManifest = true;
+      } catch (e) {
+        // No manifest
+      }
+
+      if (hasManifest) {
+        scopesWithManifests.push(scope);
+      } else {
+        scopesToDownload.push(scope);
       }
     }
 
-    // Download application files — errors propagate to orchestrator
-    logger.info("Downloading " + scope + "...");
-    const baseUrl = instanceBaseUrl(context.env.SN_INSTANCE);
-    const client = snClient(baseUrl, context.env.SN_USER, context.env.SN_PASSWORD);
-    const config = ConfigManager.getConfig();
-    const man: SN.AppManifest = await unwrapSNResponse(
-      client.getManifest(scope, config, true),
-    );
-    await AppUtils.processManifest(man);
+    // Batch prompt for scopes that already have manifests
+    if (scopesWithManifests.length > 0) {
+      var redownload = await inquirer.prompt([{
+        type: "confirm",
+        name: "confirmed",
+        message: scopesWithManifests.length + " scope(s) already have manifests (" + scopesWithManifests.join(", ") + "). Re-download?",
+        default: false,
+      }]);
+      if (redownload.confirmed) {
+        scopesToDownload = scopesToDownload.concat(scopesWithManifests);
+      }
+    }
 
-    const tableNames = Object.keys(man.tables || {});
-    const recordCount = tableNames.reduce((sum, t) => {
-      return sum + Object.keys(man.tables[t].records || {}).length;
-    }, 0);
-    logger.success(chalk.green("✓ ServiceNow configured — " + tableNames.length + " tables, " + recordCount + " records"));
+    if (scopesToDownload.length === 0) {
+      logger.info("No scopes to download — all manifests up to date.");
+      return;
+    }
+
+    // Download all scopes using the battle-tested processScope pipeline
+    logger.info("Downloading " + scopesToDownload.length + " scope(s)...");
+
+    var config = ConfigManager.getConfig();
+    var scopePromises = scopesToDownload.map(function(scopeName) {
+      var scopeConfig = (config.scopes && config.scopes[scopeName]) || {};
+      return processScope(scopeName, scopeConfig as any, 0);
+    });
+
+    var results = await Promise.allSettled(scopePromises);
+
+    // Write per-scope manifest files and tally results
+    var successCount = 0;
+    var failCount = 0;
+
+    for (var r = 0; r < results.length; r++) {
+      var result = results[r];
+      var scopeName = scopesToDownload[r];
+
+      if (result.status === "fulfilled" && result.value.success) {
+        successCount++;
+        // Write per-scope manifest
+        if (result.value.manifest) {
+          var scopeManifestPath = ConfigManager.getScopeManifestPath(scopeName);
+          fs.writeFileSync(scopeManifestPath, JSON.stringify(result.value.manifest, null, 2), "utf8");
+        }
+      } else {
+        failCount++;
+        var error = result.status === "rejected" ? result.reason : (result.value && result.value.error);
+        logger.error("Failed to initialize " + scopeName + ": " + (error && error.message ? error.message : "Unknown error"));
+      }
+    }
+
+    // Summary
+    logger.info("");
+    if (failCount === 0) {
+      logger.success(chalk.green("✓ ServiceNow configured — " + successCount + " scope(s) initialized"));
+    } else {
+      logger.warn(successCount + "/" + scopesToDownload.length + " scopes initialized, " + failCount + " failed");
+    }
   },
 };
 
