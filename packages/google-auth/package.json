@@ -1,6 +1,6 @@
 {
   "name": "@tenonhq/sincronia-google-auth",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Google OAuth2 auth client for Sincronia Google integrations",
   "main": "./dist/index.js",
   "scripts": {
