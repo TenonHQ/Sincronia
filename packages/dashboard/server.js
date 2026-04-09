@@ -358,6 +358,29 @@ app.get("/api/clickup/status", function (req, res) {
   }
 });
 
+// GET /api/clickup/me — fetch current ClickUp user
+app.get("/api/clickup/me", async function (req, res) {
+  try {
+    if (!CLICKUP_TOKEN) {
+      return res.status(400).json({ error: "CLICKUP_API_TOKEN not configured" });
+    }
+    var resp = await clickupApi("get", "user");
+    var user = resp.data.user || {};
+    res.json({
+      id: user.id,
+      username: user.username || "",
+      email: user.email || "",
+      initials: user.initials || "",
+    });
+  } catch (e) {
+    var msg = e.message;
+    if (e.response && e.response.data) {
+      msg = e.response.data.err || e.response.data.error || msg;
+    }
+    res.status(500).json({ error: msg });
+  }
+});
+
 // GET /api/clickup/tasks — fetch user's tasks with optional status filter
 app.get("/api/clickup/tasks", async function (req, res) {
   try {
@@ -395,6 +418,13 @@ app.get("/api/clickup/tasks", async function (req, res) {
         byStatus[statusName] = [];
         allStatuses.push(statusName);
       }
+      var assignees = (t.assignees || []).map(function (a) {
+        return {
+          id: a.id,
+          username: a.username || "",
+          initials: a.initials || "",
+        };
+      });
       byStatus[statusName].push({
         id: t.id,
         name: t.name,
@@ -404,6 +434,7 @@ app.get("/api/clickup/tasks", async function (req, res) {
         priority: t.priority ? t.priority.priority : null,
         url: t.url || "",
         customId: t.custom_id || null,
+        assignees: assignees,
       });
     });
 

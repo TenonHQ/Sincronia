@@ -13,6 +13,9 @@ var availableStatuses = [];
 var activeStatuses = ["in progress"];
 var sidebarOpen = false;
 var tasksLoading = false;
+var taskSearchQuery = "";
+var myTasksOnly = false;
+var clickupUserId = null;
 
 // --- API helpers ---
 
@@ -257,8 +260,8 @@ function openCreateModal(scope, scopeSysId) {
   modalScopeKey = scope;
   modalScopeSysId = scopeSysId;
   document.getElementById("modal-scope").value = scope;
-  document.getElementById("modal-name").value = "";
-  document.getElementById("modal-description").value = "";
+  document.getElementById("modal-name").value = activeTask ? activeTask.updateSetName : "";
+  document.getElementById("modal-description").value = activeTask ? activeTask.description : "";
   document.getElementById("create-modal").classList.add("active");
   document.getElementById("modal-name").focus();
 }
@@ -429,6 +432,17 @@ async function loadClickUpStatus() {
 
     if (clickupConfigured) {
       document.getElementById("sidebar-toggle").style.display = "";
+      renderTaskToggles();
+
+      // Fetch current user for "My Tasks" filter
+      if (!clickupUserId) {
+        try {
+          var me = await api("GET", "/api/clickup/me");
+          clickupUserId = me.id;
+        } catch (meErr) {
+          // Non-critical — My Tasks filter just won't work
+        }
+      }
     }
 
     if (data.activeTask) {
@@ -436,6 +450,7 @@ async function loadClickUpStatus() {
       renderActiveTaskBanner();
       renderActiveTaskChip();
       renderScopes();
+      fillQuickCreateDefaults();
     }
   } catch (e) {
     // ClickUp not available — just hide the button
@@ -508,6 +523,26 @@ function renderStatusFilters() {
 
 // --- Render task list ---
 
+function filterTasks(tasks) {
+  var filtered = tasks;
+  var query = taskSearchQuery.toLowerCase();
+  if (query) {
+    filtered = filtered.filter(function (task) {
+      var name = task.name.toLowerCase();
+      var id = (task.customId || task.id || "").toLowerCase();
+      return name.indexOf(query) !== -1 || id.indexOf(query) !== -1;
+    });
+  }
+  if (myTasksOnly && clickupUserId) {
+    filtered = filtered.filter(function (task) {
+      return task.assignees && task.assignees.some(function (a) {
+        return String(a.id) === String(clickupUserId);
+      });
+    });
+  }
+  return filtered;
+}
+
 function renderTaskList() {
   var container = document.getElementById("task-list");
   container.innerHTML = "";
@@ -518,9 +553,13 @@ function renderTaskList() {
     return;
   }
 
+  var totalVisible = 0;
+
   statusKeys.forEach(function (status) {
-    var tasks = clickupTasks[status];
-    if (!tasks || tasks.length === 0) return;
+    var tasks = filterTasks(clickupTasks[status] || []);
+    if (tasks.length === 0) return;
+
+    totalVisible += tasks.length;
 
     var group = document.createElement("div");
     group.className = "task-status-group";
@@ -544,11 +583,20 @@ function renderTaskList() {
         priorityHtml = '<span class="task-priority-dot" style="background:' + color + '"></span>';
       }
 
+      var assigneeHtml = "";
+      if (task.assignees && task.assignees.length > 0) {
+        var initials = task.assignees.map(function (a) {
+          return a.initials || (a.username || "?").substring(0, 2).toUpperCase();
+        }).join(", ");
+        assigneeHtml = '<span class="task-card-assignee">' + escapeHtml(initials) + "</span>";
+      }
+
       card.innerHTML =
         '<div class="task-card-name">' + escapeHtml(task.name) + "</div>" +
         '<div class="task-card-meta">' +
           '<span class="task-card-id">' + (task.customId || task.id) + "</span>" +
           priorityHtml +
+          assigneeHtml +
         "</div>";
 
       group.appendChild(card);
@@ -556,6 +604,10 @@ function renderTaskList() {
 
     container.appendChild(group);
   });
+
+  if (totalVisible === 0) {
+    container.innerHTML = '<div class="sidebar-loading">No matching tasks</div>';
+  }
 }
 
 // --- Select task ---
@@ -583,8 +635,8 @@ async function selectTask(task) {
     renderTaskList();
     renderScopes();
 
-    // Auto-activate update sets for all scopes
-    autoActivateAllScopes();
+    // Fill quick-create inputs with the generated update set name
+    fillQuickCreateDefaults();
   } catch (e) {
     toast("Failed to select task: " + e.message, "error");
   }
@@ -593,13 +645,14 @@ async function selectTask(task) {
 // --- Deselect task ---
 
 async function deselectTask() {
-  if (!confirm("Deselect active task? Update sets will remain but won't auto-activate.")) return;
+  if (!confirm("Deselect active task? Update sets will remain.")) return;
 
   try {
     await api("POST", "/api/clickup/deselect-task");
     activeTask = null;
     toast("Task deselected");
 
+    clearQuickCreateDefaults();
     renderActiveTaskBanner();
     renderActiveTaskChip();
     renderTaskList();
@@ -759,6 +812,46 @@ async function autoActivateAllScopes() {
   }
 }
 
+// --- Task toggles (My Tasks) ---
+
+function renderTaskToggles() {
+  var container = document.getElementById("task-toggles");
+  container.innerHTML = "";
+
+  if (!clickupConfigured) return;
+
+  var btn = document.createElement("button");
+  btn.className = "filter-chip" + (myTasksOnly ? " active" : "");
+  btn.textContent = "my tasks";
+  btn.onclick = function () {
+    myTasksOnly = !myTasksOnly;
+    btn.classList.toggle("active");
+    renderTaskList();
+  };
+  container.appendChild(btn);
+}
+
+// --- Quick-create defaults from active task ---
+
+function fillQuickCreateDefaults() {
+  if (!activeTask) return;
+  scopesData.forEach(function (scope) {
+    var input = document.getElementById("quick-name-" + scope.scope);
+    if (input && !input.value.trim()) {
+      input.value = activeTask.updateSetName;
+    }
+  });
+}
+
+function clearQuickCreateDefaults() {
+  scopesData.forEach(function (scope) {
+    var input = document.getElementById("quick-name-" + scope.scope);
+    if (input) {
+      input.value = "";
+    }
+  });
+}
+
 // --- Recent Edits ---
 
 var recentEdits = [];
@@ -897,3 +990,12 @@ document.getElementById("refresh-btn").addEventListener("click", refreshDashboar
 
 // Render initial status filter chips
 renderStatusFilters();
+
+// Wire up task search input
+document.getElementById("task-search").addEventListener("input", function (e) {
+  taskSearchQuery = e.target.value;
+  renderTaskList();
+});
+
+// Render task toggles (My Tasks)
+renderTaskToggles();
