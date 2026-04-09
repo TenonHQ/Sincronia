@@ -183,13 +183,13 @@ export const syncManifest = async (scope?: string) => {
       await processMissingFiles(newManifest, scopeSourcePath);
 
       // Update the in-memory manifest for this scope
-      if (typeof curManifest === "object" && !curManifest.tables) {
+      if (ConfigManager.isMultiScopeManifest(curManifest)) {
         (curManifest as any)[scope] = newManifest;
         ConfigManager.updateManifest(curManifest as any);
       }
     } else {
       // Sync all scopes if manifest has multiple scopes
-      if (typeof curManifest === "object" && !curManifest.tables) {
+      if (ConfigManager.isMultiScopeManifest(curManifest)) {
         // Multiple scopes detected
         for (const scopeName of Object.keys(curManifest)) {
           await syncManifest(scopeName);
@@ -590,6 +590,7 @@ const writeBuildFile = async (
       fieldCtx.tableName,
       fieldCtx.name,
       fieldCtx.targetField,
+      fieldCtx.scope,
     );
     const relPathNewExt = `${relPathNoExt}.${buildExt}`;
     const buildFilePath = path.join(buildPath, relPathNewExt);
@@ -728,7 +729,7 @@ export const checkScope = async (
     const man = ConfigManager.getManifest();
     if (man) {
       // Detect multi-scope manifest (keys are scope names, no top-level .scope)
-      var isMultiScope = typeof man === "object" && !man.scope && !man.tables;
+      var isMultiScope = ConfigManager.isMultiScopeManifest(man);
 
       if (isMultiScope) {
         // Multi-scope: session scope just needs to match any configured scope

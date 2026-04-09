@@ -242,6 +242,37 @@ export function updateManifest(man: SN.AppManifest) {
   manifest = man;
 }
 
+export function isMultiScopeManifest(man: any): boolean {
+  return typeof man === "object" && man !== null && !man.scope && !man.tables;
+}
+
+export function resolveManifestForScope(man: any, scope: string): SN.AppManifest | undefined {
+  if (!isMultiScopeManifest(man)) {
+    if (!scope || man.scope === scope) {
+      return man;
+    }
+    return undefined;
+  }
+  var scopeMan = man[scope];
+  if (scopeMan && scopeMan.tables) {
+    return scopeMan;
+  }
+  return undefined;
+}
+
+export function resolveScopeFromPath(filePath: string): string | undefined {
+  var cfg = getConfig();
+  if (!cfg.scopes) return undefined;
+  var scopeNames = Object.keys(cfg.scopes);
+  for (var i = 0; i < scopeNames.length; i++) {
+    var scopeSourcePath = getSourcePathForScope(scopeNames[i]);
+    if (filePath.indexOf(scopeSourcePath) === 0) {
+      return scopeNames[i];
+    }
+  }
+  return undefined;
+}
+
 async function loadConfigPath(pth?: string): Promise<string | false> {
   if (!pth) {
     pth = process.cwd();
