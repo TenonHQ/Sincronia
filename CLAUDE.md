@@ -31,6 +31,8 @@ npx sinc configure
 ```bash
 # Watch all scopes for changes and sync automatically
 npx sinc watch               # Multi-scope watch (aliases: w, watchAllScopes)
+npx sinc watch --port 3457   # Custom dashboard port (for multiple sessions)
+npx sinc watch --noDashboard # Watch without launching the dashboard
 
 # Manual sync operations
 npx sinc push                # Push local changes to ServiceNow
@@ -59,6 +61,7 @@ npx sinc delete <table>      # Delete a record
 
 # Tools
 npx sinc dashboard           # Launch the Update Set Dashboard web UI
+npx sinc dashboard --port 3457  # Dashboard on custom port
 npx sinc schema pull         # Pull ServiceNow table schemas
 npx sinc init-claude         # Install Claude Code skills
 npx sinc clickup             # ClickUp task management (subcommands: tasks, task, create, update, comment, teams, setup, spaces, lists)

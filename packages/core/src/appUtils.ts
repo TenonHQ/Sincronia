@@ -4,7 +4,15 @@ import fs from "fs";
 import ProgressBar from "progress";
 import * as fUtils from "./FileUtils";
 import * as ConfigManager from "./config";
-import { PUSH_RETRY_LIMIT, PUSH_RETRY_WAIT } from "./constants";
+import {
+  PUSH_RETRY_LIMIT,
+  PUSH_RETRY_WAIT,
+  CONCURRENCY_TABLES,
+  CONCURRENCY_RECORDS,
+  CONCURRENCY_FILES,
+  CONCURRENCY_PUSH,
+  CONCURRENCY_BUILD,
+} from "./constants";
 import PluginManager from "./PluginManager";
 import { fileLogger } from "./FileLogger";
 import {
@@ -16,7 +24,7 @@ import {
   unwrapTableAPIFirstItem,
 } from "./snClient";
 import { logger } from "./Logger";
-import { aggregateErrorMessages, allSettled } from "./genericUtils";
+import { aggregateErrorMessages, allSettled, processBatched, allSettledBatched } from "./genericUtils";
 
 interface UpdateSetSelection {
   sys_id: string;
@@ -57,10 +65,11 @@ const processFilesInManRec = async (
 
   await fileWrite(metadataFile, recPath);
 
-  const regularPromises = rec.files.map((file) => {
-    return fileWrite(file, recPath);
-  });
-  const writeResults = await Promise.allSettled(regularPromises);
+  const writeResults = await allSettledBatched(
+    rec.files,
+    CONCURRENCY_FILES,
+    function(file) { return fileWrite(file, recPath); },
+  );
   const writeFailures = writeResults.filter(
     (r) => r.status === "rejected",
   );
@@ -93,18 +102,11 @@ const processRecsInManTable = async (
     .map(fUtils.createDirRecursively);
   await Promise.all(recPathPromises);
 
-  const filePromises = recKeys.reduce(
-    (acc: Promise<void>[], recKey: string) => {
-      return [
-        ...acc,
-        processFilesInManRec(recKeyToPath(recKey), records[recKey], forceWrite).then(function() {
-          if (onRecordProcessed) onRecordProcessed();
-        }),
-      ];
-    },
-    [] as Promise<void>[],
-  );
-  return Promise.all(filePromises);
+  await processBatched(recKeys, CONCURRENCY_RECORDS, function(recKey) {
+    return processFilesInManRec(recKeyToPath(recKey), records[recKey], forceWrite).then(function() {
+      if (onRecordProcessed) onRecordProcessed();
+    });
+  });
 };
 
 const countRecordsInTables = (tables: SN.TableMap): number => {
@@ -121,7 +123,7 @@ const processTablesInManifest = async (
 ) => {
   var basePath = sourcePath || ConfigManager.getSourcePath();
   const tableNames = Object.keys(tables);
-  const tablePromises = tableNames.map((tableName) => {
+  await processBatched(tableNames, CONCURRENCY_TABLES, function(tableName) {
     return processRecsInManTable(
       path.join(basePath, tableName),
       tables[tableName],
@@ -129,7 +131,6 @@ const processTablesInManifest = async (
       onRecordProcessed,
     );
   });
-  await Promise.all(tablePromises);
 };
 
 export const processManifest = async (
@@ -491,7 +492,7 @@ export const pushFiles = async (
   }
 
   const tick = getProgTick(logger.getLogLevel(), recs.length * 2) || (() => {});
-  const pushResultPromises = recs.map(async (rec) => {
+  const results = await allSettledBatched(recs, CONCURRENCY_PUSH, async function(rec) {
     const fieldNames = Object.keys(rec.fields);
     const firstField = rec.fields[fieldNames[0]];
     const recSummary = summarizeRecord(rec.table, firstField.name);
@@ -514,8 +515,7 @@ export const pushFiles = async (
     tick();
     return pushRes;
   });
-  const results = await Promise.allSettled(pushResultPromises);
-  return results.map((result) => {
+  return results.map(function(result) {
     if (result.status === "fulfilled") {
       return result.value;
     }
@@ -601,8 +601,26 @@ const writeBuildFile = async (
     );
     return writeResult;
   });
+  
   try {
-    await Promise.all(writePromises);
+    await processBatched(fieldNames, CONCURRENCY_FILES, async function(field) {
+      const fieldCtx = fields[field];
+      const srcFilePath = fieldCtx.filePath;
+      const relativePath = path.relative(sourcePath, srcFilePath);
+      const relPathNoExt = relativePath.split(".").slice(0, -1).join();
+      const buildExt = fUtils.getBuildExt(
+        fieldCtx.tableName,
+        fieldCtx.name,
+        fieldCtx.targetField,
+      );
+      const relPathNewExt = `${relPathNoExt}.${buildExt}`;
+      const buildFilePath = path.join(buildPath, relPathNewExt);
+      await fUtils.createDirRecursively(path.dirname(buildFilePath));
+      await fUtils.writeFileForce(
+        buildFilePath,
+        buildRes.builtRec[fieldCtx.targetField],
+      );
+    });
     return { success: true, message: `${recSummary} built successfully` };
   } catch (e) {
     return {
@@ -617,7 +635,7 @@ export const buildFiles = async (
 ): Promise<Sinc.BuildResult[]> => {
   const tick =
     getProgTick(logger.getLogLevel(), fileList.length * 2) || (() => {});
-  const buildPromises = fileList.map(async (rec) => {
+  const results = await allSettledBatched(fileList, CONCURRENCY_BUILD, async function(rec) {
     const { fields, table } = rec;
     const fieldNames = Object.keys(fields);
     const recSummary = summarizeRecord(table, fields[fieldNames[0]].name);
@@ -632,8 +650,7 @@ export const buildFiles = async (
     tick();
     return writeRes;
   });
-  const results = await Promise.allSettled(buildPromises);
-  return results.map((result) => {
+  return results.map(function(result) {
     if (result.status === "fulfilled") {
       return result.value;
     }

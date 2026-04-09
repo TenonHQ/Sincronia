@@ -653,9 +653,14 @@ app.post("/api/clickup/deselect-task", function (req, res) {
   }
 });
 
-app.listen(PORT, () => {
-  console.log("\n  Sincronia Update Set Dashboard");
-  console.log("  Instance:  " + SN_INSTANCE);
-  console.log("  Project:   " + PROJECT_ROOT);
-  console.log("  Dashboard: http://localhost:" + PORT + "\n");
-});
+// Only start the server when run directly (not when require()-d).
+// Callers like dashboardCommand.ts and allScopesCommands.ts use
+// spawn("node", [serverPath]) which sets require.main === module.
+if (require.main === module) {
+  app.listen(PORT, function () {
+    console.log("\n  Sincronia Update Set Dashboard");
+    console.log("  Instance:  " + SN_INSTANCE);
+    console.log("  Project:   " + PROJECT_ROOT);
+    console.log("  Dashboard: http://localhost:" + PORT + "\n");
+  });
+}

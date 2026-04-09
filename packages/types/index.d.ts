@@ -18,6 +18,7 @@ export namespace Sinc {
   }
   interface WatchCmdArgs extends SharedCmdArgs {
     noDashboard: boolean;
+    port?: number;
   }
   interface Config {
     sourceDirectory: string;

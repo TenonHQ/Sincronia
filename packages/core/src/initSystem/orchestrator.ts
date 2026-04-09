@@ -207,6 +207,38 @@ async function runLoginPhase(plugin: Sinc.InitPlugin, context: Sinc.InitContext)
   }
 }
 
+async function runConfigPhase(context: Sinc.InitContext): Promise<void> {
+  if (context.hasConfig) {
+    var answer = await inquirer.prompt([{
+      type: "list",
+      name: "configAction",
+      message: "Existing config found. Would you like to update it or use the current one?",
+      choices: [
+        { name: "Use current config", value: "keep" },
+        { name: "Update config", value: "update" },
+      ],
+    }]);
+
+    if (answer.configAction === "keep") {
+      logger.info(chalk.green("  ✓ Using existing sinc.config.js"));
+      return;
+    }
+  }
+
+  // TODO: Future config wizard steps:
+  // 1. Scopes — multi-select from available scopes
+  // 2. Tables — multi-select with search (inquirer-autocomplete)
+  // 3. Fields for selected tables
+  // 4. Special scope tables
+  // 5. Special scope fields for tables
+
+  logger.info("");
+  logger.info(chalk.magenta("  🎬 Coming soon to a terminal near you!"));
+  logger.info(chalk.dim("  The config wizard is still in development — stay tuned."));
+  logger.info(chalk.dim("  For now, " + (context.hasConfig ? "we'll keep your current config." : "we'll set you up with the defaults.")));
+  logger.info("");
+}
+
 async function runConfigurePhase(plugin: Sinc.InitPlugin, context: Sinc.InitContext): Promise<void> {
   const hooks = plugin.configure;
   if (!hooks || hooks.length === 0) return;
@@ -302,6 +334,13 @@ export async function runInit(options?: RunInitOptions): Promise<void> {
 
     // 5. Save env vars after login
     saveEnvVars(context, selectedPlugins);
+
+    // 5.5 Config phase
+    logger.info("");
+    logger.info(chalk.bold("  ── Config " + "─".repeat(29)));
+    logger.info("");
+
+    await runConfigPhase(context);
 
     // 6. Configure phase
     logger.info("");
