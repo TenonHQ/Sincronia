@@ -243,31 +243,23 @@ async function runConfigPhase(context: Sinc.InitContext): Promise<void> {
     var answer = await inquirer.prompt([{
       type: "list",
       name: "configAction",
-      message: "Existing config found. Would you like to update it or use the current one?",
+      message: "Existing sinc.config.js found:",
       choices: [
         { name: "Use current config", value: "keep" },
-        { name: "Update config", value: "update" },
+        { name: "Replace config (regenerate after scope selection)", value: "replace" },
       ],
     }]);
 
+    context.answers.configAction = answer.configAction;
+
     if (answer.configAction === "keep") {
       logger.info(chalk.green("  ✓ Using existing sinc.config.js"));
-      return;
     }
+    return;
   }
 
-  // TODO: Future config wizard steps:
-  // 1. Scopes — multi-select from available scopes
-  // 2. Tables — multi-select with search (inquirer-autocomplete)
-  // 3. Fields for selected tables
-  // 4. Special scope tables
-  // 5. Special scope fields for tables
-
-  logger.info("");
-  logger.info(chalk.magenta("  🎬 Coming soon to a terminal near you!"));
-  logger.info(chalk.dim("  The config wizard is still in development — stay tuned."));
-  logger.info(chalk.dim("  For now, " + (context.hasConfig ? "we'll keep your current config." : "we'll set you up with the defaults.")));
-  logger.info("");
+  // No config — will be generated in initialize phase after scopes are selected
+  context.answers.configAction = "generate";
 }
 
 async function runConfigurePhase(plugin: Sinc.InitPlugin, context: Sinc.InitContext): Promise<void> {

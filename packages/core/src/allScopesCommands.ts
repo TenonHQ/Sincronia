@@ -14,14 +14,14 @@ import ProgressBar from "progress";
 
 const fsp = fs.promises;
 
-interface ScopeConfig {
+export interface ScopeConfig {
   sourceDirectory?: string;
   buildDirectory?: string;
   refreshInterval?: number;
   tableOptions?: any;
 }
 
-interface ScopeResult {
+export interface ScopeResult {
   scope: string;
   success: boolean;
   manifest?: any;
@@ -125,7 +125,7 @@ async function processManifestForScope(
   }
 }
 
-async function processScope(
+export async function processScope(
   scopeName: string,
   scopeConfig: ScopeConfig | boolean,
   apiDelay: number = 0,

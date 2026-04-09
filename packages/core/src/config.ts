@@ -144,6 +144,168 @@ export function getDefaultConfigFile(): string {
     `.trim();
 }
 
+/**
+ * @description Generates a full sinc.config.js with multi-scope support, table whitelist,
+ * field type overrides, and plugin rules. Used by sinc init when creating a new config.
+ * @param {Object} params - Configuration parameters
+ * @param {Array<{scope: string, sourceDirectory: string}>} params.scopes - Selected scopes with source directories
+ * @returns {string} Complete sinc.config.js file content
+ */
+export function generateConfigFile(params: {
+  scopes: Array<{ scope: string; sourceDirectory: string }>;
+}): string {
+  var scopeEntries = params.scopes.map(function(s) {
+    return "\t\t" + s.scope + ": {\n\t\t\tsourceDirectory: \"" + s.sourceDirectory + "\",\n\t\t},";
+  }).join("\n");
+
+  return "module.exports = {\n" +
+    "\tsourceDirectory: \"src\",\n" +
+    "\tbuildDirectory: \"build\",\n" +
+    "\n" +
+    "\t// Plugin Rules Configuration\n" +
+    "\trules: [\n" +
+    "\t\t{\n" +
+    "\t\t\tmatch: /sys_script_include.*\\.ts$/,\n" +
+    "\t\t\tplugins: [\n" +
+    "\t\t\t\t{\n" +
+    "\t\t\t\t\tname: \"@sincronia/typescript-plugin\",\n" +
+    "\t\t\t\t\toptions: {\n" +
+    "\t\t\t\t\t\ttranspile: true,\n" +
+    "\t\t\t\t\t\ttypeCheck: true,\n" +
+    "\t\t\t\t\t\ttsconfig: \"./tsconfig.servicenow.json\",\n" +
+    "\t\t\t\t\t},\n" +
+    "\t\t\t\t},\n" +
+    "\t\t\t\t{\n" +
+    "\t\t\t\t\tname: \"@sincronia/eslint-plugin\",\n" +
+    "\t\t\t\t\toptions: {\n" +
+    "\t\t\t\t\t\tconfigFile: \"./.eslintrc.js\",\n" +
+    "\t\t\t\t\t\tfix: false,\n" +
+    "\t\t\t\t\t\tcache: true,\n" +
+    "\t\t\t\t\t},\n" +
+    "\t\t\t\t},\n" +
+    "\t\t\t\t{\n" +
+    "\t\t\t\t\tname: \"@sincronia/babel-plugin\",\n" +
+    "\t\t\t\t\toptions: {\n" +
+    "\t\t\t\t\t\tconfigFile: \"./.babelrc\",\n" +
+    "\t\t\t\t\t},\n" +
+    "\t\t\t\t},\n" +
+    "\t\t\t\t{\n" +
+    "\t\t\t\t\tname: \"@sincronia/prettier-plugin\",\n" +
+    "\t\t\t\t\toptions: {\n" +
+    "\t\t\t\t\t\tconfigFile: \"./.prettierrc.js\",\n" +
+    "\t\t\t\t\t},\n" +
+    "\t\t\t\t},\n" +
+    "\t\t\t],\n" +
+    "\t\t},\n" +
+    "\t],\n" +
+    "\n" +
+    "\tincludes: {\n" +
+    "\t\t_tables: [\n" +
+    "\t\t\t\"sys_script_include\",\n" +
+    "\t\t\t\"sys_script\",\n" +
+    "\t\t\t\"sys_ui_script\",\n" +
+    "\t\t\t\"sys_ui_page\",\n" +
+    "\t\t\t\"sys_ux_client_script\",\n" +
+    "\t\t\t\"sys_processor\",\n" +
+    "\t\t\t\"sys_ws_operation\",\n" +
+    "\t\t\t\"sys_rest_message_fn\",\n" +
+    "\t\t\t\"sys_ui_action\",\n" +
+    "\t\t\t\"sys_security_acl\",\n" +
+    "\t\t\t\"sysevent_script_action\",\n" +
+    "\t\t\t\"sys_ux_macroponent\",\n" +
+    "\t\t\t\"sys_ux_event\",\n" +
+    "\t\t\t\"sys_ux_client_script_include\",\n" +
+    "\t\t\t\"sys_ux_screen\",\n" +
+    "\t\t\t\"sys_script_fix\",\n" +
+    "\t\t],\n" +
+    "\t\tsys_script_include: {\n" +
+    "\t\t\tscript: { type: \"js\" },\n" +
+    "\t\t},\n" +
+    "\t\tsys_script: {\n" +
+    "\t\t\tscript: { type: \"js\" },\n" +
+    "\t\t},\n" +
+    "\t\tsys_ui_script: {\n" +
+    "\t\t\tscript: { type: \"js\" },\n" +
+    "\t\t},\n" +
+    "\t\tsys_ui_page: {\n" +
+    "\t\t\tprocessing_script: { type: \"js\" },\n" +
+    "\t\t\tclient_script: { type: \"js\" },\n" +
+    "\t\t\thtml: { type: \"html\" },\n" +
+    "\t\t},\n" +
+    "\t\tsys_processor: {\n" +
+    "\t\t\tscript: { type: \"js\" },\n" +
+    "\t\t},\n" +
+    "\t\tsys_ws_operation: {\n" +
+    "\t\t\toperation_script: { type: \"js\" },\n" +
+    "\t\t},\n" +
+    "\t\tsys_rest_message_fn: {\n" +
+    "\t\t\tcontent: { type: \"txt\" },\n" +
+    "\t\t},\n" +
+    "\t\tsys_ui_action: {\n" +
+    "\t\t\tscript: { type: \"js\" },\n" +
+    "\t\t\tclient_script_v2: { type: \"js\" },\n" +
+    "\t\t},\n" +
+    "\t\tsys_security_acl: {\n" +
+    "\t\t\tscript: { type: \"js\" },\n" +
+    "\t\t},\n" +
+    "\t\tsysevent_script_action: {\n" +
+    "\t\t\tscript: { type: \"js\" },\n" +
+    "\t\t},\n" +
+    "\t\tsys_script_fix: {\n" +
+    "\t\t\tscript: { type: \"js\" },\n" +
+    "\t\t},\n" +
+    "\t\tsys_ux_macroponent: {\n" +
+    "\t\t\tcomposition: { type: \"json\" },\n" +
+    "\t\t\tprops: { type: \"json\" },\n" +
+    "\t\t\tdata: { type: \"json\" },\n" +
+    "\t\t\trequired_translations: { type: \"json\" },\n" +
+    "\t\t\troot_component_definition: { type: \"json\" },\n" +
+    "\t\t\tstate_properties: { type: \"json\" },\n" +
+    "\t\t\troot_component_config: { type: \"json\" },\n" +
+    "\t\t\tinternal_event_mappings: { type: \"json\" },\n" +
+    "\t\t\tstate_persistence_config: { type: \"json\" },\n" +
+    "\t\t},\n" +
+    "\t\tsys_ux_event: {\n" +
+    "\t\t\tdescription: { type: \"txt\" },\n" +
+    "\t\t\tevent_name: { type: \"txt\" },\n" +
+    "\t\t\tlabel: { type: \"txt\" },\n" +
+    "\t\t\tprops: { type: \"json\" },\n" +
+    "\t\t\trequired_translations: { type: \"json\" },\n" +
+    "\t\t},\n" +
+    "\t\tsys_ux_client_script: {\n" +
+    "\t\t\tscript: { type: \"js\" },\n" +
+    "\t\t\tname: { type: \"txt\" },\n" +
+    "\t\t},\n" +
+    "\t\tsys_ux_client_script_include: {\n" +
+    "\t\t\tscript: { type: \"js\" },\n" +
+    "\t\t\tname: { type: \"txt\" },\n" +
+    "\t\t},\n" +
+    "\t\tsys_ux_screen: {\n" +
+    "\t\t\tmacroponent_config: { type: \"json\" },\n" +
+    "\t\t\tevent_mappings: { type: \"json\" },\n" +
+    "\t\t},\n" +
+    "\t\t_scopes: {},\n" +
+    "\t},\n" +
+    "\n" +
+    "\texcludes: {\n" +
+    "\t\t_tables: [],\n" +
+    "\t},\n" +
+    "\n" +
+    "\tmanifestOptions: {\n" +
+    "\t\tupdateFields: true,\n" +
+    "\t\tupdateDependencies: true,\n" +
+    "\t},\n" +
+    "\n" +
+    "\tserver: {\n" +
+    "\t\twatchPath: \"./src\",\n" +
+    "\t},\n" +
+    "\n" +
+    "\tscopes: {\n" +
+    scopeEntries + "\n" +
+    "\t},\n" +
+    "};\n";
+}
+
 async function loadConfig(skipConfigPath = false): Promise<Sinc.ScopedConfig> {
   if (skipConfigPath) {
     logger.warn("Couldn't find config file. Loading default...");
