@@ -136,6 +136,37 @@ async function runLoginPhase(plugin: Sinc.InitPlugin, context: Sinc.InitContext)
 
   // Core plugin: retry loop with specific error messages
   if (plugin.name === "core") {
+    // If .env already has all required credentials, offer to skip login
+    const hasAllCreds = context.env.SN_INSTANCE && context.env.SN_USER && context.env.SN_PASSWORD;
+
+    if (hasAllCreds) {
+      logger.info("Found existing credentials:");
+      logger.info("  Instance: " + context.env.SN_INSTANCE);
+      logger.info("  User:     " + context.env.SN_USER);
+      logger.info("");
+
+      const useExisting = await inquirer.prompt([{
+        type: "confirm",
+        name: "confirmed",
+        message: "Use these credentials?",
+        default: true,
+      }]);
+
+      if (useExisting.confirmed) {
+        logger.info("Validating credentials...");
+        const result = await validateCoreLogin(context);
+
+        if (result === true) {
+          logger.success(chalk.green("✓ Connected to " + context.env.SN_INSTANCE));
+          return;
+        }
+
+        logger.error(chalk.red("✗ " + result));
+        logger.info("Please re-enter your credentials.");
+        context.env.SN_PASSWORD = "";
+      }
+    }
+
     while (true) {
       await collectLoginHooks(hooks, context);
 
