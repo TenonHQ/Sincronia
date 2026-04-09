@@ -1,6 +1,6 @@
 {
   "name": "@tenonhq/sincronia-core",
-  "version": "0.0.77",
+  "version": "0.0.78",
   "description": "Next-gen file syncer",
   "license": "GPL-3.0",
   "main": "./dist/index.js",
@@ -22,7 +22,7 @@
     "node": ">=20.0.0"
   },
   "devDependencies": {
-    "@tenonhq/sincronia-types": "^0.0.10",
+    "@tenonhq/sincronia-types": "^0.0.13",
     "@types/dotenv": "^6.1.1",
     "@types/inquirer": "^8.2.10",
     "@types/jest": "^29.5.5",
