@@ -133,6 +133,34 @@ const processTablesInManifest = async (
   });
 };
 
+/**
+ * Re-keys manifest records from sys_id to record.name (display value).
+ * Some ServiceNow tables return records keyed by sys_id instead of display name.
+ * This ensures consistent naming for directories and manifest lookups.
+ */
+export const normalizeManifestKeys = (manifest: SN.AppManifest): SN.AppManifest => {
+  var tables = manifest.tables || {};
+  var tableNames = Object.keys(tables);
+  for (var i = 0; i < tableNames.length; i++) {
+    var tableName = tableNames[i];
+    var records = tables[tableName].records || {};
+    var recordKeys = Object.keys(records);
+    var normalized: SN.TableConfigRecords = {};
+    for (var j = 0; j < recordKeys.length; j++) {
+      var key = recordKeys[j];
+      var record = records[key];
+      var displayKey = record.name || key;
+      // Handle duplicate display names by appending sys_id suffix
+      if (normalized[displayKey]) {
+        displayKey = displayKey + " (" + record.sys_id.substring(0, 8) + ")";
+      }
+      normalized[displayKey] = record;
+    }
+    tables[tableName].records = normalized;
+  }
+  return manifest;
+};
+
 export const processManifest = async (
   manifest: SN.AppManifest,
   forceWrite = false,
@@ -173,8 +201,8 @@ export const syncManifest = async (scope?: string) => {
       // Resolve scope-specific source directory
       var scopeSourcePath = ConfigManager.getSourcePathForScope(scope);
 
-      const newManifest = await unwrapSNResponse(
-        client.getManifest(scope, config),
+      const newManifest = normalizeManifestKeys(
+        await unwrapSNResponse(client.getManifest(scope, config)),
       );
 
       const refreshTableCount = Object.keys(newManifest.tables).length;
@@ -739,94 +767,3 @@ export const createAndAssignUpdateSet = async (updateSetName = "", scope?: strin
   };
 };
 
-export const checkScope = async (
-  swap: boolean,
-): Promise<Sinc.ScopeCheckResult> => {
-  try {
-    const man = ConfigManager.getManifest();
-    if (man) {
-      // Detect multi-scope manifest (keys are scope names, no top-level .scope)
-      var isMultiScope = ConfigManager.isMultiScopeManifest(man);
-
-      if (isMultiScope) {
-        // Multi-scope: session scope just needs to match any configured scope
-        var configuredScopes = Object.keys(man);
-        var client = defaultClient();
-        var scopeObj;
-        try {
-          scopeObj = await unwrapSNResponse(client.getCurrentScope());
-        } catch (scopeErr) {
-          logger.info("Scope check endpoint unavailable, assuming match for multi-scope project");
-          return { match: true, sessionScope: configuredScopes[0], manifestScope: configuredScopes[0] };
-        }
-        var sessionScope = scopeObj.scope;
-        var scopeMatch = configuredScopes.indexOf(sessionScope) !== -1;
-        logger.info("Current scope: " + sessionScope + ", Configured scopes: " + configuredScopes.join(", "));
-        if (scopeMatch) {
-          return { match: true, sessionScope: sessionScope, manifestScope: sessionScope };
-        } else if (swap && configuredScopes.length > 0) {
-          logger.info("Current scope (" + sessionScope + ") not in configured scopes. Swapping to " + configuredScopes[0] + "...\n");
-          var swappedScopeObj = await swapScope(configuredScopes[0]);
-          return {
-            match: configuredScopes.indexOf(swappedScopeObj.scope) !== -1,
-            sessionScope: swappedScopeObj.scope,
-            manifestScope: configuredScopes[0],
-          };
-        } else {
-          return { match: false, sessionScope: sessionScope, manifestScope: configuredScopes.join(", ") };
-        }
-      }
-
-      // Single-scope manifest
-      var singleClient = defaultClient();
-      var singleScopeObj;
-      try {
-        singleScopeObj = await unwrapSNResponse(singleClient.getCurrentScope());
-      } catch (scopeErr) {
-        // getCurrentScope endpoint may not exist on this instance — skip scope check
-        logger.info(
-          `Scope check endpoint unavailable, assuming scope match for: ${man.scope}`,
-        );
-        return {
-          match: true,
-          sessionScope: man.scope,
-          manifestScope: man.scope,
-        };
-      }
-      logger.info(
-        `Current scope: ${singleScopeObj.scope}, Manifest scope: ${man.scope}`,
-      );
-      if (singleScopeObj.scope === man.scope) {
-        return {
-          match: true,
-          sessionScope: singleScopeObj.scope,
-          manifestScope: man.scope,
-        };
-      } else if (swap) {
-        logger.info(
-          `Current scope (${singleScopeObj.scope}) does not match manifest scope (${man.scope}). Swapping...\n`,
-        );
-        var singleSwapped = await swapScope(man.scope);
-        return {
-          match: singleSwapped.scope === man.scope,
-          sessionScope: singleSwapped.scope,
-          manifestScope: man.scope,
-        };
-      } else {
-        return {
-          match: false,
-          sessionScope: singleScopeObj.scope,
-          manifestScope: man.scope,
-        };
-      }
-    }
-    //first time case
-    return {
-      match: true,
-      sessionScope: "",
-      manifestScope: "",
-    };
-  } catch (e) {
-    throw e;
-  }
-};

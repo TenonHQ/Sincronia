@@ -5,7 +5,6 @@ import * as ConfigManager from "./config";
 import * as AppUtils from "./appUtils";
 import * as fUtils from "./FileUtils";
 import { setupDotEnv, getLoginInfo } from "./wizard";
-import { scopeCheckMessage } from "./logMessages";
 import { defaultClient, unwrapSNResponse } from "./snClient";
 import { setLogLevel } from "./commands";
 import * as path from "path";
@@ -213,6 +212,9 @@ async function processScope(
     } else {
       logger.warn("No _tables whitelist defined — writing ALL tables for " + scopeName);
     }
+
+    // Normalize record keys from sys_id to display name
+    AppUtils.normalizeManifestKeys(manifest);
 
     // Build the missing files structure from the filtered manifest
     var manifestTables = manifest.tables || {};

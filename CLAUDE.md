@@ -338,6 +338,18 @@ npx sinc refresh --scope x_cadso_core
    - Optimize build pipeline
    - Clear cache if needed
 
+## Design Document
+
+The comprehensive Sincronia design document lives at [`Development/docs/sincronia-design-doc.md`](../../docs/sincronia-design-doc.md). It covers:
+
+- **What Sincronia is** — Integration platform and Claude Code's action layer (not just a SN dev tool)
+- **What we built** — Detailed breakdown of all 16 packages, APIs, and usage
+- **What we intend to build** — Automated deployment pipeline, ATF test execution, app certification prep, cross-environment code movement
+- **Design principles** — Package pattern, read+write with gates, npm-first distribution
+- **Technical debt** — Lerna upgrade, Node 22, test coverage, typing gaps
+
+Read this before making architectural decisions or adding new packages.
+
 ## Notes
 
 - **Version Requirement**: Node.js v20 LTS required
