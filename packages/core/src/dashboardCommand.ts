@@ -3,7 +3,7 @@ import { setLogLevel } from "./commands";
 import { logger } from "./Logger";
 import { spawn } from "child_process";
 
-export async function dashboardCommand(args: Sinc.SharedCmdArgs): Promise<void> {
+export async function dashboardCommand(args: Sinc.SharedCmdArgs & { port?: number }): Promise<void> {
   setLogLevel(args);
 
   let serverPath: string;
@@ -15,18 +15,19 @@ export async function dashboardCommand(args: Sinc.SharedCmdArgs): Promise<void> 
     );
   }
 
+  var port = args.port ? String(args.port) : (process.env.DASHBOARD_PORT || "3456");
+
   logger.info("Starting Update Set Dashboard...");
 
   const server = spawn("node", [serverPath], {
     cwd: process.cwd(),
     stdio: "inherit",
-    env: { ...process.env },
+    env: { ...process.env, DASHBOARD_PORT: port },
   });
 
   // Open browser after a short delay
   setTimeout(() => {
-    const port = process.env.DASHBOARD_PORT || "3456";
-    const url = `http://localhost:${port}`;
+    const url = "http://localhost:" + port;
     spawn("open", [url]);
   }, 1000);
 

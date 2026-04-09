@@ -95,6 +95,61 @@ export function chunkArr(
   return chunks;
 }
 
+export async function processBatched<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  var results: R[] = new Array(items.length);
+  var index = 0;
+
+  async function runNext(): Promise<void> {
+    while (index < items.length) {
+      var currentIndex = index;
+      index++;
+      results[currentIndex] = await fn(items[currentIndex]);
+    }
+  }
+
+  var workers: Promise<void>[] = [];
+  var workerCount = Math.min(concurrency, items.length);
+  for (var i = 0; i < workerCount; i++) {
+    workers.push(runNext());
+  }
+  await Promise.all(workers);
+  return results;
+}
+
+export async function allSettledBatched<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<R>,
+): Promise<PromiseSettledResult<R>[]> {
+  var results: PromiseSettledResult<R>[] = new Array(items.length);
+  var index = 0;
+
+  async function runNext(): Promise<void> {
+    while (index < items.length) {
+      var currentIndex = index;
+      index++;
+      try {
+        var value = await fn(items[currentIndex]);
+        results[currentIndex] = { status: "fulfilled", value: value };
+      } catch (e) {
+        results[currentIndex] = { status: "rejected", reason: e };
+      }
+    }
+  }
+
+  var workers: Promise<void>[] = [];
+  var workerCount = Math.min(concurrency, items.length);
+  for (var i = 0; i < workerCount; i++) {
+    workers.push(runNext());
+  }
+  await Promise.all(workers);
+  return results;
+}
+
 export const allSettled = <T>(
   promises: Promise<T>[],
 ): Promise<Sinc.PromiseResult<T>[]> => {

@@ -55,6 +55,11 @@ export async function initCommands() {
             default: false,
             describe: "Skip launching the dashboard web UI",
           },
+          port: {
+            alias: "p",
+            type: "number",
+            describe: "Dashboard port (default: DASHBOARD_PORT env or 3456)",
+          },
         });
         return cmdArgs;
       },
@@ -400,8 +405,20 @@ export async function initCommands() {
     .command(
       "dashboard",
       "Launch the Update Set Dashboard web UI",
-      sharedOptions,
-      dashboardCommand,
+      (cmdArgs) => {
+        cmdArgs.options({
+          ...sharedOptions,
+          port: {
+            alias: "p",
+            type: "number",
+            describe: "Dashboard port (default: DASHBOARD_PORT env or 3456)",
+          },
+        });
+        return cmdArgs;
+      },
+      async (args: TSFIXME) => {
+        await dashboardCommand(args);
+      },
     )
     .command(
       "schema <subcommand>",

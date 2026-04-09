@@ -35,9 +35,14 @@ Add these to your project's `.env`:
 ```bash
 # From your Sincronia project directory
 sinc dashboard
+
+# Custom port (useful for multiple sessions)
+sinc dashboard --port 3457
 ```
 
-This starts an Express server and opens `http://localhost:3456` in your browser.
+This starts an Express server and opens `http://localhost:3456` (or your custom port) in your browser.
+
+Port precedence: `--port` flag > `DASHBOARD_PORT` env var > default `3456`.
 
 ## How It Integrates with Push
 
