@@ -132,6 +132,34 @@ const processTablesInManifest = async (
   await Promise.all(tablePromises);
 };
 
+/**
+ * Re-keys manifest records from sys_id to record.name (display value).
+ * Some ServiceNow tables return records keyed by sys_id instead of display name.
+ * This ensures consistent naming for directories and manifest lookups.
+ */
+export const normalizeManifestKeys = (manifest: SN.AppManifest): SN.AppManifest => {
+  var tables = manifest.tables || {};
+  var tableNames = Object.keys(tables);
+  for (var i = 0; i < tableNames.length; i++) {
+    var tableName = tableNames[i];
+    var records = tables[tableName].records || {};
+    var recordKeys = Object.keys(records);
+    var normalized: SN.TableConfigRecords = {};
+    for (var j = 0; j < recordKeys.length; j++) {
+      var key = recordKeys[j];
+      var record = records[key];
+      var displayKey = record.name || key;
+      // Handle duplicate display names by appending sys_id suffix
+      if (normalized[displayKey]) {
+        displayKey = displayKey + " (" + record.sys_id.substring(0, 8) + ")";
+      }
+      normalized[displayKey] = record;
+    }
+    tables[tableName].records = normalized;
+  }
+  return manifest;
+};
+
 export const processManifest = async (
   manifest: SN.AppManifest,
   forceWrite = false,
@@ -172,8 +200,8 @@ export const syncManifest = async (scope?: string) => {
       // Resolve scope-specific source directory
       var scopeSourcePath = ConfigManager.getSourcePathForScope(scope);
 
-      const newManifest = await unwrapSNResponse(
-        client.getManifest(scope, config),
+      const newManifest = normalizeManifestKeys(
+        await unwrapSNResponse(client.getManifest(scope, config)),
       );
 
       const refreshTableCount = Object.keys(newManifest.tables).length;

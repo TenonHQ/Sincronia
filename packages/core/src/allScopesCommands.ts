@@ -214,6 +214,9 @@ async function processScope(
       logger.warn("No _tables whitelist defined — writing ALL tables for " + scopeName);
     }
 
+    // Normalize record keys from sys_id to display name
+    AppUtils.normalizeManifestKeys(manifest);
+
     // Build the missing files structure from the filtered manifest
     var manifestTables = manifest.tables || {};
     var allMissingFiles: any = {};
