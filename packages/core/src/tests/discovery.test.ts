@@ -63,4 +63,17 @@ describe("discoverPlugins", function () {
     const names = plugins.map(function (p) { return p.name; });
     expect(names).not.toContain("sass-plugin");
   });
+
+  it("skips sincronia-dashboard and sincronia-schema", function () {
+    (logger.warn as jest.Mock).mockClear();
+    mockReaddirSync.mockReturnValue([
+      "sincronia-dashboard",
+      "sincronia-schema",
+    ]);
+
+    const plugins = discoverPlugins();
+    expect(plugins).toEqual([]);
+    // No require() attempted, so no warn from load failure
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
 });

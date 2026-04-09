@@ -3,7 +3,16 @@ import * as fs from "fs";
 import * as path from "path";
 import { logger } from "../Logger";
 
-const SKIP_PACKAGES = new Set(["sincronia-core", "sincronia-types"]);
+// Skip packages that are not init plugins:
+// - core/types: the discovery system itself
+// - dashboard: starts Express server on require (side effect)
+// - schema: library imported directly by schemaCommand, not a plugin
+const SKIP_PACKAGES = new Set([
+  "sincronia-core",
+  "sincronia-types",
+  "sincronia-dashboard",
+  "sincronia-schema",
+]);
 const MAX_PARENT_DEPTH = 3;
 
 /**
