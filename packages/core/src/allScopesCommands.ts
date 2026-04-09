@@ -5,7 +5,6 @@ import * as ConfigManager from "./config";
 import * as AppUtils from "./appUtils";
 import * as fUtils from "./FileUtils";
 import { setupDotEnv, getLoginInfo } from "./wizard";
-import { scopeCheckMessage } from "./logMessages";
 import { defaultClient, unwrapSNResponse } from "./snClient";
 import { setLogLevel } from "./commands";
 import * as path from "path";

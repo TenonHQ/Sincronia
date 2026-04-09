@@ -104,11 +104,6 @@ export namespace Sinc {
     content: string;
   };
 
-  interface ScopeCheckResult {
-    manifestScope: string;
-    sessionScope: string;
-    match: boolean;
-  }
   interface LoginAnswers {
     instance: string;
     username: string;

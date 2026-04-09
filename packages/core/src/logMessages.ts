@@ -4,22 +4,6 @@ import chalk from "chalk";
 
 export const log = console.log;
 
-export function scopeCheckMessage(scopeCheck: Sinc.ScopeCheckResult) {
-  let sScope = chalk.blue(scopeCheck.sessionScope);
-  let mScope = chalk.blue(scopeCheck.manifestScope);
-
-  logger.error(
-    "Scope mismatch: your session is " + sScope + " but this project targets " + mScope + ". Switch scopes in ServiceNow to continue.",
-  );
-}
-
-export function devModeLog() {
-  logger.info(
-    `Dev mode started! Watching for changes...[${chalk.red(
-      "Press CTRL-C to Stop",
-    )}]\n`,
-  );
-}
 
 function parseError(err: Error): string {
   return `${err.name}:

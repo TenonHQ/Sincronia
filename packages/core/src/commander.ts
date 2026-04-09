@@ -8,6 +8,7 @@ import {
   deployCommand,
   statusCommand,
 } from "./commands";
+
 import { initScopesCommand, watchAllScopesCommand } from "./allScopesCommands";
 import {
   createUpdateSetCommand,
@@ -78,13 +79,6 @@ export async function initCommands() {
             type: "string",
             default: "",
             describe: "Specify branch to do git diff against",
-          },
-          scopeSwap: {
-            alias: "ss",
-            type: "boolean",
-            default: false,
-            describe:
-              "Will auto-swap to the correct scope for the files being pushed",
           },
           updateSet: {
             alias: "us",
