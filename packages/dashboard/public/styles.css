@@ -285,6 +285,56 @@ header h1 span {
   border-color: var(--clickup-purple);
 }
 
+/* Task search */
+.sidebar-search {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.task-search-input {
+  width: 100%;
+  font-family: inherit;
+  font-size: 12px;
+  padding: 6px 10px;
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.task-search-input:focus {
+  border-color: var(--clickup-purple);
+}
+
+.task-search-input::placeholder {
+  color: var(--text-muted);
+}
+
+/* Task toggles (My Tasks, etc.) */
+.sidebar-task-toggles {
+  padding: 8px 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebar-task-toggles:empty {
+  display: none;
+}
+
+/* Task assignee badge */
+.task-card-assignee {
+  font-size: 9px;
+  color: var(--text-muted);
+  background: var(--wood-medium);
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: auto;
+}
+
 /* Task cards in sidebar */
 .sidebar-tasks {
   flex: 1;
