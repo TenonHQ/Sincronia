@@ -120,12 +120,23 @@ export const getBuildExt = (
   table: string,
   recordName: string,
   field: string,
+  scope?: string,
 ): string => {
-  const manifest = ConfigManager.getManifest();
+  var manifest = ConfigManager.getManifest();
   if (!manifest) {
     throw new Error("Failed to retrieve manifest");
   }
-  const files = manifest.tables[table].records[recordName].files;
+
+  var resolvedManifest = manifest;
+  if (scope && ConfigManager.isMultiScopeManifest(manifest)) {
+    var scopeMan = ConfigManager.resolveManifestForScope(manifest, scope);
+    if (!scopeMan) {
+      throw new Error("Failed to find scope " + scope + " in manifest");
+    }
+    resolvedManifest = scopeMan;
+  }
+
+  const files = resolvedManifest.tables[table].records[recordName].files;
   const file = files.find((f) => f.name === field);
   if (!file) {
     throw new Error("Unable to find file");
@@ -152,11 +163,30 @@ export const getFileContextFromPath = (
     .split(path.sep)
     .slice(-2);
   const targetField = getTargetFieldFromPath(filePath, tableName, ext);
-  const manifest = ConfigManager.getManifest();
+  var manifest = ConfigManager.getManifest();
   if (!manifest) {
     throw new Error("No manifest has been loaded!");
   }
-  const { tables, scope } = manifest;
+
+  var scope;
+  var tables;
+
+  if (ConfigManager.isMultiScopeManifest(manifest)) {
+    var detectedScope = ConfigManager.resolveScopeFromPath(filePath);
+    if (!detectedScope) {
+      return undefined;
+    }
+    var scopeMan = ConfigManager.resolveManifestForScope(manifest, detectedScope);
+    if (!scopeMan) {
+      return undefined;
+    }
+    scope = scopeMan.scope || detectedScope;
+    tables = scopeMan.tables;
+  } else {
+    scope = manifest.scope;
+    tables = manifest.tables;
+  }
+
   try {
     const { records } = tables[tableName];
     const record = records[recordName];

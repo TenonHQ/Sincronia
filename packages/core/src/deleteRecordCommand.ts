@@ -31,7 +31,7 @@ async function resolveScope(args: DeleteRecordArgs): Promise<string> {
   // Try to get scope from current manifest
   try {
     var manifest = ConfigManager.getManifest();
-    if (manifest && manifest.scope) {
+    if (manifest && !ConfigManager.isMultiScopeManifest(manifest) && manifest.scope) {
       return manifest.scope;
     }
   } catch (e) {
