@@ -1,7 +1,7 @@
 import chokidar from "chokidar";
 import { logFilePush } from "./logMessages";
 import { debounce } from "lodash";
-import { getFileContextFromPath } from "./FileUtils";
+import { getFileContextFromPath, getFileContextWithSkipReason } from "./FileUtils";
 import { Sinc } from "@tenonhq/sincronia-types";
 import { groupAppFiles, pushFiles } from "./appUtils";
 import { writeRecentEdit } from "./recentEdits";
@@ -275,13 +275,23 @@ class MultiScopeWatcherManager {
         // Load the manifest for this specific scope
         await this.loadScopeManifest(scopeWatcher.scope, scopeWatcher.sourceDirectory);
 
-        // Process the files
-        const fileContexts = toProcess
-          .map(getFileContextFromPath)
-          .filter((ctx): ctx is Sinc.FileContext => !!ctx);
+        // Process the files — track skip reasons for summary
+        const fileContexts: Sinc.FileContext[] = [];
+        const skippedFiles: Array<{ filePath: string; reason: string }> = [];
+
+        toProcess.forEach(function (filePath) {
+          var result = getFileContextWithSkipReason(filePath);
+          if (result.context) {
+            fileContexts.push(result.context);
+          } else {
+            var reason = result.skipReason || "unknown";
+            logger.warn(`[${scopeWatcher.scope}] Skipped: ${filePath} (${reason})`);
+            skippedFiles.push({ filePath: filePath, reason: reason });
+          }
+        });
 
         if (fileContexts.length === 0) {
-          logger.warn(`[${scopeWatcher.scope}] No valid file contexts found`);
+          logger.warn(`[${scopeWatcher.scope}] No valid file contexts found. ${skippedFiles.length} file(s) skipped.`);
           return;
         }
 
@@ -297,7 +307,15 @@ class MultiScopeWatcherManager {
           }
         });
 
-        logger.success(`[${scopeWatcher.scope}] Successfully pushed ${updateResults.length} file(s)`);
+        // Push summary
+        var pushedCount = updateResults.filter(function (r) { return r.success; }).length;
+        var totalCount = toProcess.length;
+        var summaryParts = [`Pushed ${pushedCount}/${totalCount} files to ${scopeWatcher.scope}.`];
+        if (skippedFiles.length > 0) {
+          var skippedList = skippedFiles.map(function (s) { return `${s.filePath} (${s.reason})`; }).join(", ");
+          summaryParts.push(`${skippedFiles.length} files skipped: [${skippedList}]`);
+        }
+        logger.info(`[${scopeWatcher.scope}] ${summaryParts.join(" ")}`);
       });
     } catch (error) {
       logger.error(`[${scopeWatcher.scope}] Error processing queue: ${error}`);

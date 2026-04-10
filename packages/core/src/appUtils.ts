@@ -415,9 +415,15 @@ export const getAppFileList = async (
     typeof paths === "object"
       ? paths
       : await fUtils.encodedPathsToFilePaths(paths);
-  const appFileCtxs = validPaths
-    .map(fUtils.getFileContextFromPath)
-    .filter((maybeCtx): maybeCtx is Sinc.FileContext => !!maybeCtx);
+  const appFileCtxs: Sinc.FileContext[] = [];
+  validPaths.forEach(function (filePath) {
+    var result = fUtils.getFileContextWithSkipReason(filePath);
+    if (result.context) {
+      appFileCtxs.push(result.context);
+    } else {
+      logger.warn(`Skipped: ${filePath} (${result.skipReason || "unknown"})`);
+    }
+  });
   return groupAppFiles(appFileCtxs);
 };
 

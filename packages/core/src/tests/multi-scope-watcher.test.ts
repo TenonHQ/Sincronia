@@ -70,6 +70,7 @@ jest.mock("../snClient", () => ({
 
 jest.mock("../FileUtils", () => ({
   getFileContextFromPath: jest.fn(),
+  getFileContextWithSkipReason: jest.fn(),
 }));
 
 jest.mock("../appUtils", () => ({
@@ -79,6 +80,10 @@ jest.mock("../appUtils", () => ({
 
 jest.mock("../logMessages", () => ({
   logFilePush: jest.fn(),
+}));
+
+jest.mock("../recentEdits", () => ({
+  writeRecentEdit: jest.fn(),
 }));
 
 jest.mock("../Logger", () => ({
@@ -129,7 +134,7 @@ jest.mock("axios", () => ({
 import chokidar from "chokidar";
 import fs from "fs";
 import * as ConfigManager from "../config";
-import { getFileContextFromPath } from "../FileUtils";
+import { getFileContextFromPath, getFileContextWithSkipReason } from "../FileUtils";
 import { groupAppFiles, pushFiles } from "../appUtils";
 import { logFilePush } from "../logMessages";
 import { logger } from "../Logger";
@@ -290,7 +295,7 @@ describe("MultiScopeWatcherManager", () => {
 
     it("processes file change through scope switch and push pipeline", async () => {
       const ctx = makeFileContext();
-      (getFileContextFromPath as jest.Mock).mockReturnValue(ctx);
+      (getFileContextWithSkipReason as jest.Mock).mockReturnValue({ context: ctx });
       (groupAppFiles as jest.Mock).mockReturnValue([{ table: "sys_script_include", sysId: "abc123", fields: {} }]);
       (pushFiles as jest.Mock).mockResolvedValue([{ success: true, message: "ok" }]);
 
@@ -300,14 +305,14 @@ describe("MultiScopeWatcherManager", () => {
       // Trigger the debounced processor for this scope
       await capturedDebounceFns[0]();
 
-      expect(getFileContextFromPath).toHaveBeenCalled();
+      expect(getFileContextWithSkipReason).toHaveBeenCalled();
       expect(groupAppFiles).toHaveBeenCalled();
       expect(pushFiles).toHaveBeenCalled();
     });
 
     it("processes file add through the same pipeline", async () => {
       const ctx = makeFileContext();
-      (getFileContextFromPath as jest.Mock).mockReturnValue(ctx);
+      (getFileContextWithSkipReason as jest.Mock).mockReturnValue({ context: ctx });
       (groupAppFiles as jest.Mock).mockReturnValue([{ table: "sys_script_include", sysId: "abc123", fields: {} }]);
       (pushFiles as jest.Mock).mockResolvedValue([{ success: true, message: "ok" }]);
 
@@ -318,7 +323,7 @@ describe("MultiScopeWatcherManager", () => {
     });
 
     it("warns when no valid file contexts found", async () => {
-      (getFileContextFromPath as jest.Mock).mockReturnValue(undefined);
+      (getFileContextWithSkipReason as jest.Mock).mockReturnValue({ skipReason: "not in manifest" });
 
       mockWatchers[0]._emit("change", "/project/src/x_test_core/unknown/file.txt");
       await capturedDebounceFns[0]();
@@ -327,6 +332,58 @@ describe("MultiScopeWatcherManager", () => {
         expect.stringContaining("No valid file contexts found"),
       );
       expect(pushFiles).not.toHaveBeenCalled();
+    });
+
+    it("logs warning for each skipped file with reason", async () => {
+      (getFileContextWithSkipReason as jest.Mock)
+        .mockReturnValueOnce({ skipReason: "not in manifest" })
+        .mockReturnValueOnce({ context: makeFileContext() });
+      (groupAppFiles as jest.Mock).mockReturnValue([{ table: "sys_script_include", sysId: "abc123", fields: {} }]);
+      (pushFiles as jest.Mock).mockResolvedValue([{ success: true, message: "ok" }]);
+
+      mockWatchers[0]._emit("change", "/project/src/x_test_core/unknown/file.txt");
+      mockWatchers[0]._emit("change", makeFileContext().filePath);
+      await capturedDebounceFns[0]();
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Skipped: /project/src/x_test_core/unknown/file.txt (not in manifest)"),
+      );
+    });
+
+    it("logs warning with scope not found reason", async () => {
+      (getFileContextWithSkipReason as jest.Mock).mockReturnValue({ skipReason: "scope not found" });
+
+      mockWatchers[0]._emit("change", "/project/src/x_unknown/sys_script/file.js");
+      await capturedDebounceFns[0]();
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Skipped: /project/src/x_unknown/sys_script/file.js (scope not found)"),
+      );
+    });
+
+    it("logs push summary with skipped file count", async () => {
+      var ctx = makeFileContext();
+      (getFileContextWithSkipReason as jest.Mock)
+        .mockReturnValueOnce({ context: ctx })
+        .mockReturnValueOnce({ skipReason: "not in manifest" });
+      (groupAppFiles as jest.Mock).mockReturnValue([{ table: "sys_script_include", sysId: "abc123", fields: {} }]);
+      (pushFiles as jest.Mock).mockResolvedValue([{ success: true, message: "ok" }]);
+
+      mockWatchers[0]._emit("change", ctx.filePath);
+      mockWatchers[0]._emit("change", "/project/src/x_test_core/unknown/other.txt");
+      await capturedDebounceFns[0]();
+
+      // Should log a summary with pushed/total counts and skipped files
+      var allCalls = [
+        ...(logger.info as jest.Mock).mock.calls,
+        ...(logger.success as jest.Mock).mock.calls,
+      ].map(function (c: any[]) { return c[0]; });
+      var summaryCall = allCalls.find(function (msg: any) {
+        return typeof msg === "string" && msg.indexOf("Pushed") !== -1 && msg.indexOf("files to") !== -1;
+      });
+      expect(summaryCall).toBeDefined();
+      expect(summaryCall).toContain("1/2");
+      expect(summaryCall).toContain("skipped");
     });
 
     it("logs error on watcher error event", () => {
