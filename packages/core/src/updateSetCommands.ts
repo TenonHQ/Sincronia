@@ -433,13 +433,14 @@ async function promptForUpdateSetDetails(args: any): Promise<{
 }
 
 /**
- * Helper function to switch to an update set using the new API endpoint
+ * Helper function to switch to an update set using the new API endpoint.
+ * Verifies the switch was successful by reading back the current update set.
  */
 async function switchToUpdateSet(updateSetSysId: string, name?: string, scope?: string): Promise<void> {
   const client = defaultClient();
-  
+
   logger.debug(`Switching to update set - sysId: ${updateSetSysId}, name: ${name}, scope: ${scope}`);
-  
+
   // Use the new changeUpdateSet endpoint
   // Can use either sysId or name+scope combination
   const params: any = {};
@@ -452,24 +453,84 @@ async function switchToUpdateSet(updateSetSysId: string, name?: string, scope?: 
   if (scope) {
     params.scope = scope;
   }
-  
+
   const response = await client.changeUpdateSet(params);
   let result = await response.data;
-  
+
   // Handle wrapped response
   if (result && (result as any).result) {
     result = (result as any).result;
   }
-  
+
   logger.debug(`Change update set response: ${JSON.stringify(result)}`);
-  
+
   if (result.error) {
     throw new Error(result.error);
   }
-  
+
   // Check if the message indicates success
   if (result.message && !result.message.includes("Success") && !result.message.includes("changed")) {
     throw new Error(result.message);
+  }
+
+  // Verify the switch was successful
+  var verified = await verifyActiveUpdateSet(client, updateSetSysId, scope);
+  if (!verified) {
+    // Retry once
+    logger.warn("Update set verification failed, retrying switch...");
+    var retryResponse = await client.changeUpdateSet(params);
+    var retryResult = await retryResponse.data;
+    if (retryResult && (retryResult as any).result) {
+      retryResult = (retryResult as any).result;
+    }
+    if (retryResult.error) {
+      throw new Error(retryResult.error);
+    }
+
+    var retryVerified = await verifyActiveUpdateSet(client, updateSetSysId, scope);
+    if (!retryVerified) {
+      var currentName = await getActiveUpdateSetName(client, scope);
+      throw new Error(
+        "Update set " + (name || updateSetSysId) + " was created but could not be activated. Current update set is " + (currentName || "unknown") + "."
+      );
+    }
+  }
+}
+
+/**
+ * Verifies the currently active update set matches the expected sys_id.
+ */
+async function verifyActiveUpdateSet(client: ReturnType<typeof defaultClient>, expectedSysId: string, scope?: string): Promise<boolean> {
+  try {
+    var response = await client.getCurrentUpdateSet(scope);
+    var result = await response.data;
+    if (result && (result as any).result) {
+      result = (result as any).result;
+    }
+    if (result && result.sysId === expectedSysId) {
+      return true;
+    }
+    logger.debug("Verification mismatch: expected " + expectedSysId + ", got " + (result && result.sysId ? result.sysId : "null"));
+    return false;
+  } catch (e) {
+    logger.debug("Verification check failed: " + (e instanceof Error ? e.message : String(e)));
+    return false;
+  }
+}
+
+/**
+ * Gets the name of the currently active update set for error messages.
+ */
+async function getActiveUpdateSetName(client: ReturnType<typeof defaultClient>, scope?: string): Promise<string | null> {
+  try {
+    var response = await client.getCurrentUpdateSet(scope);
+    var result = await response.data;
+    if (result && (result as any).result) {
+      result = (result as any).result;
+    }
+    return (result && result.name) ? result.name : null;
+  } catch (e) {
+    return null;
   }
 }
 

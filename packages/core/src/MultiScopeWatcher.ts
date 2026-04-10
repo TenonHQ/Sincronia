@@ -234,9 +234,34 @@ class MultiScopeWatcherManager {
         logger.info(`[${scopeName}] Auto-created update set: ${updateSet.name}`);
       }
 
-      // Switch the active update set on the instance
+      // Switch the active update set on the instance and verify
       try {
         await client.changeUpdateSet({ sysId: updateSet.sys_id });
+
+        // Verify the switch was successful
+        var verifyResp = await client.getCurrentUpdateSet(scopeName);
+        var verifyResult = verifyResp.data;
+        if (verifyResult && (verifyResult as any).result) {
+          verifyResult = (verifyResult as any).result;
+        }
+        var currentSysId = verifyResult && (verifyResult as any).sysId ? (verifyResult as any).sysId : null;
+        if (currentSysId !== updateSet.sys_id) {
+          // Retry once
+          logger.warn(`[${scopeName}] Update set verification failed, retrying switch...`);
+          await client.changeUpdateSet({ sysId: updateSet.sys_id });
+          var retryResp = await client.getCurrentUpdateSet(scopeName);
+          var retryResult = retryResp.data;
+          if (retryResult && (retryResult as any).result) {
+            retryResult = (retryResult as any).result;
+          }
+          var retrySysId = retryResult && (retryResult as any).sysId ? (retryResult as any).sysId : null;
+          if (retrySysId !== updateSet.sys_id) {
+            var actualName = retryResult && (retryResult as any).name ? (retryResult as any).name : "unknown";
+            logger.error(`[${scopeName}] Update set ${updateSet.name} was created but could not be activated. Current update set is ${actualName}.`);
+            throw new Error(`Update set ${updateSet.name} could not be activated for scope ${scopeName}`);
+          }
+        }
+        logger.debug(`[${scopeName}] Update set switch verified: ${updateSet.name}`);
       } catch (changeErr) {
         logger.warn(`[${scopeName}] Could not auto-switch update set on instance`);
       }

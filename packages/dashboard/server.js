@@ -556,12 +556,46 @@ async function findOrCreateUpdateSet(scope, scopeSysId, activeTask) {
     created = true;
   }
 
-  // Change the current update set on the ServiceNow instance
+  // Change the current update set on the ServiceNow instance and verify
   try {
     await snApi(
       "get",
       "api/cadso/claude/changeUpdateSet?sysId=" + encodeURIComponent(updateSet.sys_id)
     );
+
+    // Verify the switch was successful
+    var verifyResp = await snApi(
+      "get",
+      "api/cadso/claude/currentUpdateSet" + (scope ? "?scope=" + encodeURIComponent(scope) : "")
+    );
+    var verifyData = verifyResp.data;
+    if (verifyData && verifyData.result) {
+      verifyData = verifyData.result;
+    }
+    var currentSysId = verifyData && verifyData.sysId ? verifyData.sysId : null;
+    if (currentSysId !== updateSet.sys_id) {
+      // Retry once
+      console.warn("Update set verification failed, retrying switch...");
+      await snApi(
+        "get",
+        "api/cadso/claude/changeUpdateSet?sysId=" + encodeURIComponent(updateSet.sys_id)
+      );
+      var retryResp = await snApi(
+        "get",
+        "api/cadso/claude/currentUpdateSet" + (scope ? "?scope=" + encodeURIComponent(scope) : "")
+      );
+      var retryData = retryResp.data;
+      if (retryData && retryData.result) {
+        retryData = retryData.result;
+      }
+      var retrySysId = retryData && retryData.sysId ? retryData.sysId : null;
+      if (retrySysId !== updateSet.sys_id) {
+        var actualName = retryData && retryData.name ? retryData.name : "unknown";
+        console.error(
+          "Update set " + updateSet.name + " was created but could not be activated. Current update set is " + actualName + "."
+        );
+      }
+    }
   } catch (changeErr) {
     console.error("Warning: Could not auto-switch update set on instance:", changeErr.message);
   }
