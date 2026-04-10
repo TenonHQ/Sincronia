@@ -173,6 +173,13 @@ class MultiScopeWatcherManager {
           logger.error("Active task file is missing a valid updateSetName. Ignoring active task.");
           return null;
         }
+        var stat = fs.statSync(taskPath);
+        var ageMs = Date.now() - stat.mtimeMs;
+        var ageDays = Math.floor(ageMs / (1000 * 60 * 60 * 24));
+        if (ageDays >= 7) {
+          var taskName = parsed.taskName || parsed.taskId;
+          logger.warn("Active task " + taskName + " was selected " + ageDays + " days ago. Run sinc task clear if you have moved on.");
+        }
         return parsed;
       }
     } catch (e) {

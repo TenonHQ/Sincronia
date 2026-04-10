@@ -24,6 +24,7 @@ jest.mock("fs", function () {
     writeFileSync: jest.fn(function (p: string, data: string) {
       mockFsStore[p] = data;
     }),
+    statSync: jest.fn(function () { return { mtimeMs: Date.now() }; }),
     promises: {
       readFile: jest.fn(function (p: string) {
         if (p in mockFsStore) return Promise.resolve(mockFsStore[p]);
