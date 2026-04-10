@@ -177,7 +177,7 @@ class MultiScopeWatcherManager {
     var activeTask = this.readActiveTask();
     if (!activeTask) {
       logger.warn(
-        `[${scopeName}] No update set configured and no active task to auto-create one. Pushing without update set routing.`
+        `[${scopeName}] No update set configured for scope ${scopeName}. Changes will go to Default. Use sinc createUpdateSet or activate a task in the dashboard.`
       );
       return;
     }
@@ -195,7 +195,12 @@ class MultiScopeWatcherManager {
       // Switch to the target scope and resolve its sys_id for update set creation
       await client.changeScope(scopeName);
       var scopeIdResult = await unwrapSNResponse(client.getScopeId(scopeName));
-      var scopeSysId = scopeIdResult.length > 0 ? scopeIdResult[0].sys_id : undefined;
+      var scopeSysId = scopeIdResult && scopeIdResult.length > 0 ? scopeIdResult[0].sys_id : undefined;
+
+      if (!scopeSysId) {
+        logger.error(`[${scopeName}] Scope "${scopeName}" not found on the instance. Cannot create update set for an invalid scope.`);
+        return;
+      }
 
       // Search for an existing update set matching this task in this scope
       var query =
