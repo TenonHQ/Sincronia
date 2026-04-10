@@ -722,7 +722,7 @@ app.post("/api/clickup/deselect-task", function (req, res) {
 // Callers like dashboardCommand.ts and allScopesCommands.ts use
 // spawn("node", [serverPath]) which sets require.main === module.
 if (require.main === module) {
-  app.listen(PORT, function () {
+  app.listen(PORT, "127.0.0.1", function () {
     console.log("\n  Sincronia Update Set Dashboard");
     console.log("  Instance:  " + SN_INSTANCE);
     console.log("  Project:   " + PROJECT_ROOT);
