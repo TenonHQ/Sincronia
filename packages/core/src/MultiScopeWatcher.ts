@@ -236,10 +236,18 @@ class MultiScopeWatcherManager {
         logger.warn(`[${scopeName}] Could not auto-switch update set on instance`);
       }
 
-      // Persist the mapping
+      // Persist the mapping (serialized under scopeLock — safe from concurrent writes)
       config = this.getUpdateSetConfig(); // Re-read in case another scope wrote
       config[scopeName] = { sys_id: updateSet.sys_id, name: updateSet.name };
       this.saveUpdateSetConfig(config);
+
+      // Verify the write persisted correctly
+      var verifiedConfig = this.getUpdateSetConfig();
+      if (!verifiedConfig[scopeName] || verifiedConfig[scopeName].sys_id !== updateSet.sys_id) {
+        logger.error(`[${scopeName}] Update set config write verification failed. Expected mapping for ${scopeName} with sys_id ${updateSet.sys_id} but got: ${JSON.stringify(verifiedConfig[scopeName])}`);
+        throw new Error(`Update set config write verification failed for scope ${scopeName}`);
+      }
+      logger.debug(`[${scopeName}] Update set config verified: ${updateSet.name} (${updateSet.sys_id})`);
 
       // Also update the active task file
       if (activeTask) {
