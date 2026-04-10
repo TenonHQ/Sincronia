@@ -1,5 +1,5 @@
 import { Sinc, SN } from "@tenonhq/sincronia-types";
-import axios, { AxiosPromise, AxiosResponse } from "axios";
+import axios, { AxiosPromise, AxiosResponse, AxiosError } from "axios";
 import { wrapper } from "axios-cookiejar-support";
 import rateLimit from "axios-rate-limit";
 import { CookieJar } from "tough-cookie";
@@ -38,6 +38,110 @@ export const retryOnErr = async <T>(
     }
     await wait(msBetween);
     return retryOnErr(f, newRetries, msBetween, onRetry);
+  }
+};
+
+function _getHttpStatus(e: unknown): number | undefined {
+  if (axios.isAxiosError(e) && e.response) {
+    return e.response.status;
+  }
+  return undefined;
+}
+
+function _getRetryAfterMs(e: unknown): number {
+  if (axios.isAxiosError(e) && e.response && e.response.headers) {
+    var retryAfter = e.response.headers["retry-after"];
+    if (retryAfter) {
+      var seconds = Number(retryAfter);
+      if (!isNaN(seconds) && seconds > 0) {
+        return seconds * 1000;
+      }
+    }
+  }
+  return 10000; // Default 10s for 429 without Retry-After
+}
+
+export const retryOnHttpErr = async <T>(
+  f: () => Promise<T>,
+  recSummary: string,
+): Promise<T> => {
+  var maxServerRetries = 3;
+  var backoffMs = 1000;
+  var attempt = 0;
+
+  while (true) {
+    try {
+      return await f();
+    } catch (e) {
+      var status = _getHttpStatus(e);
+      attempt++;
+
+      // 401/403: Auth failure — fail immediately
+      if (status === 401 || status === 403) {
+        var authMsg = status === 401 ? "Unauthorized" : "Forbidden";
+        logger.error(
+          authMsg + " (" + status + ") pushing " + recSummary +
+          ". Verify your ServiceNow credentials and permissions."
+        );
+        throw e;
+      }
+
+      // 404: Record not found — fail immediately
+      if (status === 404) {
+        logger.error(
+          "Record not found (404) pushing " + recSummary +
+          ". The record may have been deleted from the instance."
+        );
+        throw e;
+      }
+
+      // 429: Rate limited — honor Retry-After, then retry
+      if (status === 429) {
+        var retryWait = _getRetryAfterMs(e);
+        logger.warn(
+          "Rate limited (429) pushing " + recSummary +
+          ". Waiting " + Math.round(retryWait / 1000) + "s before retry."
+        );
+        await wait(retryWait);
+        continue;
+      }
+
+      // 500/502/503: Server error — exponential backoff, max 3 retries
+      if (status === 500 || status === 502 || status === 503) {
+        if (attempt > maxServerRetries) {
+          logger.error(
+            "Server error (" + status + ") pushing " + recSummary +
+            " after " + maxServerRetries + " retries. Giving up."
+          );
+          throw e;
+        }
+        var cappedBackoff = Math.min(backoffMs, 8000);
+        logger.warn(
+          "Server error (" + status + ") pushing " + recSummary +
+          ". Retrying in " + (cappedBackoff / 1000) + "s (" +
+          (maxServerRetries - attempt) + " retries left)."
+        );
+        await wait(cappedBackoff);
+        backoffMs = backoffMs * 2;
+        continue;
+      }
+
+      // Unknown status or non-HTTP error — retry once, then fail
+      if (attempt > 1) {
+        var errDetail = status ? "HTTP " + status : "unknown error";
+        logger.error(
+          "Push failed for " + recSummary + " (" + errDetail +
+          ") after 1 retry. Giving up."
+        );
+        throw e;
+      }
+      var retryDetail = status ? "HTTP " + status : "unknown error";
+      logger.warn(
+        "Unexpected error (" + retryDetail + ") pushing " + recSummary +
+        ". Retrying once."
+      );
+      await wait(1000);
+    }
   }
 };
 

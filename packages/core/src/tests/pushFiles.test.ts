@@ -46,6 +46,9 @@ jest.mock("../snClient", function () {
     retryOnErr: function (fn: () => Promise<unknown>) {
       return fn();
     },
+    retryOnHttpErr: function (fn: () => Promise<unknown>) {
+      return fn();
+    },
     unwrapSNResponse: jest.fn(),
     unwrapTableAPIFirstItem: jest.fn(),
     SNClient: jest.fn(),

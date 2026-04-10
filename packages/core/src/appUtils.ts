@@ -5,8 +5,6 @@ import ProgressBar from "progress";
 import * as fUtils from "./FileUtils";
 import * as ConfigManager from "./config";
 import {
-  PUSH_RETRY_LIMIT,
-  PUSH_RETRY_WAIT,
   CONCURRENCY_TABLES,
   CONCURRENCY_RECORDS,
   CONCURRENCY_FILES,
@@ -19,6 +17,7 @@ import {
   defaultClient,
   processPushResponse,
   retryOnErr,
+  retryOnHttpErr,
   SNClient,
   unwrapSNResponse,
   unwrapTableAPIFirstItem,
@@ -493,16 +492,7 @@ const pushRec = async (
         }
       : () => client.updateRecord(table, sysId, builtRec);
 
-    const pushRes = await retryOnErr(
-      pushFn,
-      PUSH_RETRY_LIMIT,
-      PUSH_RETRY_WAIT,
-      (numTries: number) => {
-        logger.debug(
-          `Failed to push ${recSummary}! Retrying with ${numTries} left...`,
-        );
-      },
-    );
+    const pushRes = await retryOnHttpErr(pushFn, recSummary);
     return processPushResponse(pushRes, recSummary);
   } catch (e) {
     let message;
