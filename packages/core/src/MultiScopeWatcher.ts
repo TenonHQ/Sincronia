@@ -164,7 +164,16 @@ class MultiScopeWatcherManager {
     var taskPath = path.resolve(process.cwd(), ".sinc-active-task.json");
     try {
       if (fs.existsSync(taskPath)) {
-        return JSON.parse(fs.readFileSync(taskPath, "utf8"));
+        var parsed = JSON.parse(fs.readFileSync(taskPath, "utf8"));
+        if (!parsed.taskId || typeof parsed.taskId !== "string" || parsed.taskId.trim() === "") {
+          logger.error("Active task file is missing a valid taskId. Ignoring active task.");
+          return null;
+        }
+        if (!parsed.updateSetName || typeof parsed.updateSetName !== "string" || parsed.updateSetName.trim() === "") {
+          logger.error("Active task file is missing a valid updateSetName. Ignoring active task.");
+          return null;
+        }
+        return parsed;
       }
     } catch (e) {
       // Ignore parse errors
@@ -194,6 +203,11 @@ class MultiScopeWatcherManager {
     var taskId = activeTask.taskId;
     var updateSetName = activeTask.updateSetName;
     var description = activeTask.description || "";
+
+    if (!taskId || taskId.trim() === "") {
+      logger.error(`[${scopeName}] Active task has an empty taskId. Skipping update set lookup.`);
+      return;
+    }
 
     logger.info(`[${scopeName}] No update set found — auto-creating for task CU-${taskId}...`);
 

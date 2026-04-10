@@ -515,6 +515,10 @@ async function findOrCreateUpdateSet(scope, scopeSysId, activeTask) {
   var baseName = activeTask.updateSetName;
   var taskId = activeTask.taskId;
 
+  if (!taskId || typeof taskId !== "string" || taskId.trim() === "") {
+    throw new Error("Cannot search for update sets: activeTask has an empty or missing taskId");
+  }
+
   // Query ServiceNow for existing update sets matching this task in this scope
   var query =
     "application.scope=" + scope +
