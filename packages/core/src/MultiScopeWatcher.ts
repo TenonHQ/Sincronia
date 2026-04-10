@@ -282,7 +282,13 @@ class MultiScopeWatcherManager {
         toProcess.forEach(function (filePath) {
           var result = getFileContextWithSkipReason(filePath);
           if (result.context) {
-            fileContexts.push(result.context);
+            // Scope validation: ensure the record's scope matches the watcher's scope
+            if (result.context.scope && result.context.scope !== scopeWatcher.scope) {
+              logger.error(`[${scopeWatcher.scope}] Scope mismatch: ${filePath} belongs to scope "${result.context.scope}" but was queued by watcher for "${scopeWatcher.scope}". Skipping to prevent cross-scope contamination.`);
+              skippedFiles.push({ filePath: filePath, reason: `scope mismatch (record: ${result.context.scope}, watcher: ${scopeWatcher.scope})` });
+            } else {
+              fileContexts.push(result.context);
+            }
           } else {
             var reason = result.skipReason || "unknown";
             logger.warn(`[${scopeWatcher.scope}] Skipped: ${filePath} (${reason})`);

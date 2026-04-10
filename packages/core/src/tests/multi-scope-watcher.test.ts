@@ -386,6 +386,82 @@ describe("MultiScopeWatcherManager", () => {
       expect(summaryCall).toContain("skipped");
     });
 
+    it("allows file through when scope matches watcher scope", async () => {
+      const ctx = makeFileContext({ scope: "x_test_core" });
+      (getFileContextWithSkipReason as jest.Mock).mockReturnValue({ context: ctx });
+      (groupAppFiles as jest.Mock).mockReturnValue([{ table: "sys_script_include", sysId: "abc123", fields: {} }]);
+      (pushFiles as jest.Mock).mockResolvedValue([{ success: true, message: "ok" }]);
+
+      mockWatchers[0]._emit("change", ctx.filePath);
+      await capturedDebounceFns[0]();
+
+      expect(pushFiles).toHaveBeenCalled();
+      expect(logger.error).not.toHaveBeenCalledWith(
+        expect.stringContaining("Scope mismatch"),
+      );
+    });
+
+    it("skips file with error when scope mismatches watcher scope", async () => {
+      const ctx = makeFileContext({ scope: "x_other_scope" });
+      (getFileContextWithSkipReason as jest.Mock).mockReturnValue({ context: ctx });
+
+      mockWatchers[0]._emit("change", ctx.filePath);
+      await capturedDebounceFns[0]();
+
+      // Should log an error about scope mismatch
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining("Scope mismatch"),
+      );
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining("x_other_scope"),
+      );
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining("x_test_core"),
+      );
+
+      // Should not push the file
+      expect(pushFiles).not.toHaveBeenCalled();
+
+      // Should appear in the summary as skipped
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("No valid file contexts found"),
+      );
+    });
+
+    it("includes scope-mismatched file in push summary alongside valid files", async () => {
+      const validCtx = makeFileContext({ scope: "x_test_core", filePath: "/project/src/x_test_core/sys_script_include/Valid/script.js" });
+      const mismatchCtx = makeFileContext({ scope: "x_other_scope", filePath: "/project/src/x_test_core/sys_script_include/Wrong/script.js" });
+      (getFileContextWithSkipReason as jest.Mock)
+        .mockReturnValueOnce({ context: validCtx })
+        .mockReturnValueOnce({ context: mismatchCtx });
+      (groupAppFiles as jest.Mock).mockReturnValue([{ table: "sys_script_include", sysId: "abc123", fields: {} }]);
+      (pushFiles as jest.Mock).mockResolvedValue([{ success: true, message: "ok" }]);
+
+      mockWatchers[0]._emit("change", validCtx.filePath);
+      mockWatchers[0]._emit("change", mismatchCtx.filePath);
+      await capturedDebounceFns[0]();
+
+      // Valid file should be pushed
+      expect(pushFiles).toHaveBeenCalled();
+
+      // Mismatch should be logged as error
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining("Scope mismatch"),
+      );
+
+      // Push summary should include the skipped file
+      var allCalls = [
+        ...(logger.info as jest.Mock).mock.calls,
+        ...(logger.success as jest.Mock).mock.calls,
+      ].map(function (c: any[]) { return c[0]; });
+      var summaryCall = allCalls.find(function (msg: any) {
+        return typeof msg === "string" && msg.indexOf("Pushed") !== -1 && msg.indexOf("files to") !== -1;
+      });
+      expect(summaryCall).toBeDefined();
+      expect(summaryCall).toContain("1/2");
+      expect(summaryCall).toContain("skipped");
+    });
+
     it("logs error on watcher error event", () => {
       mockWatchers[0]._emit("error", new Error("FS error"));
       expect(logger.error).toHaveBeenCalledWith(
