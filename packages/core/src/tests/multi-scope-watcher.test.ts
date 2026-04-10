@@ -37,7 +37,7 @@ jest.mock("chokidar", () => ({
   }),
 }));
 
-// Debounce: capture per-scope processors, tests trigger manually
+// Debounce: capture the global processor, tests trigger manually
 const capturedDebounceFns: Function[] = [];
 
 jest.mock("lodash", () => {
@@ -195,6 +195,9 @@ describe("MultiScopeWatcherManager", () => {
     // Reset scope and user caches (US-013)
     (multiScopeWatcher as any).cachedScope = null;
     (multiScopeWatcher as any).cachedUserSysId = null;
+    // Reset global debounce state (US-014)
+    (multiScopeWatcher as any).pendingScopes = new Map();
+    (multiScopeWatcher as any).globalProcessQueue = null;
 
     // Default: scope switching succeeds
     mockSNClient.getScopeId.mockResolvedValue([{ sys_id: "scope_sys_id" }]);

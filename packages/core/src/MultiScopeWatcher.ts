@@ -46,6 +46,8 @@ class MultiScopeWatcherManager {
   private scopeLock: Promise<void> = Promise.resolve();
   private cachedScope: string | null = null;
   private cachedUserSysId: string | null = null;
+  private pendingScopes: Map<string, number> = new Map(); // scope -> first change timestamp
+  private globalProcessQueue: ReturnType<typeof debounce> | null = null;
 
   async startWatchingAllScopes(options?: WatcherOptions) {
     var opts = options || { monitorIntervalMs: 120000 };
@@ -113,21 +115,29 @@ class MultiScopeWatcherManager {
       sourceDirectory: sourceDirectory
     };
 
-    // Create a debounced processor for this scope
-    const processQueue = debounce(async () => {
-      await this.processScopeQueue(scopeWatcher);
-    }, DEBOUNCE_MS);
+    // Initialize global debounce once (shared across all scopes)
+    if (!this.globalProcessQueue) {
+      this.globalProcessQueue = debounce(async () => {
+        await this.processAllPendingScopes();
+      }, DEBOUNCE_MS);
+    }
 
     watcher.on("change", (filePath: string) => {
       logger.info(`[${scopeName}] File changed: ${path.relative(sourceDirectory, filePath)}`);
       scopeWatcher.pushQueue.push(filePath);
-      processQueue();
+      if (!this.pendingScopes.has(scopeName)) {
+        this.pendingScopes.set(scopeName, Date.now());
+      }
+      this.globalProcessQueue!();
     });
 
     watcher.on("add", (filePath: string) => {
       logger.info(`[${scopeName}] File added: ${path.relative(sourceDirectory, filePath)}`);
       scopeWatcher.pushQueue.push(filePath);
-      processQueue();
+      if (!this.pendingScopes.has(scopeName)) {
+        this.pendingScopes.set(scopeName, Date.now());
+      }
+      this.globalProcessQueue!();
     });
 
     watcher.on("error", (error: Error) => {
@@ -323,6 +333,22 @@ class MultiScopeWatcherManager {
     } catch (error) {
       logger.error(`[${scopeName}] Failed to auto-create update set: ${error}`);
       logger.warn(`[${scopeName}] Pushing without update set routing.`);
+    }
+  }
+
+  private async processAllPendingScopes() {
+    // Sort scopes by first file change timestamp (FIFO)
+    var sorted = Array.from(this.pendingScopes.entries()).sort(function (a, b) {
+      return a[1] - b[1];
+    });
+    this.pendingScopes.clear();
+
+    for (var i = 0; i < sorted.length; i++) {
+      var scopeName = sorted[i][0];
+      var scopeWatcher = this.scopeWatchers.get(scopeName);
+      if (scopeWatcher && scopeWatcher.pushQueue.length > 0) {
+        await this.processScopeQueue(scopeWatcher);
+      }
     }
   }
 
@@ -592,6 +618,13 @@ class MultiScopeWatcherManager {
       scopeWatcher.watcher.close();
     }
     this.scopeWatchers.clear();
+
+    // Cancel global debounce
+    if (this.globalProcessQueue) {
+      this.globalProcessQueue.cancel();
+      this.globalProcessQueue = null;
+    }
+    this.pendingScopes.clear();
 
     // Stop update set monitoring
     if (this.updateSetCheckInterval) {
