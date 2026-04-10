@@ -229,7 +229,7 @@ export async function createUpdateSetCommand(args: any): Promise<void> {
       logger.warn(`Update set "${name}" created but could not be activated automatically`);
       logger.info(`You can manually switch to it using: npx sinc switchUpdateSet --name "${name}"`);
       if (switchError instanceof Error) {
-        logger.debug(`Switch error: ${switchError.message}`);
+        logger.warn(`Switch error: ${switchError.message}`);
       }
     }
     
@@ -510,10 +510,10 @@ async function verifyActiveUpdateSet(client: ReturnType<typeof defaultClient>, e
     if (result && result.sysId === expectedSysId) {
       return true;
     }
-    logger.debug("Verification mismatch: expected " + expectedSysId + ", got " + (result && result.sysId ? result.sysId : "null"));
+    logger.warn("Verification mismatch: expected " + expectedSysId + ", got " + (result && result.sysId ? result.sysId : "null"));
     return false;
   } catch (e) {
-    logger.debug("Verification check failed: " + (e instanceof Error ? e.message : String(e)));
+    logger.warn("Verification check failed: " + (e instanceof Error ? e.message : String(e)));
     return false;
   }
 }

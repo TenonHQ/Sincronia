@@ -306,6 +306,17 @@ export async function statusCommand() {
     logger.info("User:          " + (process.env.SN_USER || "not set"));
     logger.info("Active scope:  " + scopeObj.scope);
 
+    // Read update set config
+    var updateSetConfig: Record<string, { sys_id: string; name: string }> = {};
+    var updateSetConfigPath = path.resolve(process.cwd(), ".sinc-update-sets.json");
+    try {
+      if (fs.existsSync(updateSetConfigPath)) {
+        updateSetConfig = JSON.parse(fs.readFileSync(updateSetConfigPath, "utf8"));
+      }
+    } catch (e) {
+      logger.warn("Failed to parse .sinc-update-sets.json: " + (e instanceof Error ? e.message : String(e)));
+    }
+
     if (config.scopes) {
       var scopeNames = Object.keys(config.scopes);
       logger.info("\nConfigured scopes (" + scopeNames.length + "):");
@@ -316,7 +327,10 @@ export async function statusCommand() {
           ? scopeConf.sourceDirectory
           : "src/" + scopeName;
         var marker = scopeName === scopeObj.scope ? " (active)" : "";
-        logger.info("  " + scopeName + marker + " — " + srcDir);
+        var updateSetInfo = updateSetConfig[scopeName]
+          ? " [update set: " + updateSetConfig[scopeName].name + "]"
+          : " [no update set configured]";
+        logger.info("  " + scopeName + marker + " — " + srcDir + updateSetInfo);
       }
     }
   } catch (e) {

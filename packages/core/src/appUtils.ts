@@ -39,7 +39,7 @@ const getUpdateSetConfig = (): UpdateSetConfig => {
       return JSON.parse(fs.readFileSync(configPath, "utf8"));
     }
   } catch (e) {
-    // Ignore parse errors
+    logger.warn(`Failed to parse update set config at ${configPath}: ${e instanceof Error ? e.message : String(e)}`);
   }
   return {};
 };
@@ -420,7 +420,12 @@ export const getAppFileList = async (
     if (result.context) {
       appFileCtxs.push(result.context);
     } else {
-      logger.warn(`Skipped: ${filePath} (${result.skipReason || "unknown"})`);
+      var reason = result.skipReason || "unknown";
+      if (reason === "not in manifest") {
+        logger.info(`Skipped: ${filePath} (${reason})`);
+      } else {
+        logger.warn(`Skipped: ${filePath} (${reason})`);
+      }
     }
   });
   return groupAppFiles(appFileCtxs);

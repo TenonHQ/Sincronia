@@ -167,7 +167,7 @@ class MultiScopeWatcherManager {
         return JSON.parse(fs.readFileSync(configPath, "utf8"));
       }
     } catch (e) {
-      // Ignore parse errors
+      logger.warn(`[MultiScope] Failed to parse update set config at ${configPath}: ${e instanceof Error ? e.message : String(e)}`);
     }
     return {};
   }
@@ -195,7 +195,7 @@ class MultiScopeWatcherManager {
         return parsed;
       }
     } catch (e) {
-      // Ignore parse errors
+      logger.warn(`Failed to parse active task file: ${e instanceof Error ? e.message : String(e)}`);
     }
     return null;
   }
@@ -606,7 +606,7 @@ class MultiScopeWatcherManager {
       }
       return null;
     } catch (error) {
-      logger.debug(`Could not get update set details: ${error}`);
+      logger.warn(`Could not get update set details: ${error}`);
       return null;
     }
   }
