@@ -108,9 +108,11 @@ jest.mock("../config", () => ({
   getManifestPath: jest.fn().mockReturnValue("/project/sinc.manifest.json"),
 }));
 
-// Mock fs for manifest loading (dynamic import in MultiScopeWatcher)
+// Mock fs for manifest loading and config file access
 jest.mock("fs", () => ({
   existsSync: jest.fn(),
+  readFileSync: jest.fn(),
+  writeFileSync: jest.fn(),
   promises: {
     readFile: jest.fn(),
     writeFile: jest.fn(),
@@ -666,7 +668,7 @@ describe("MultiScopeWatcherManager", () => {
   });
 
   describe("update set monitoring", () => {
-    it("sets up a 2-minute interval via setInterval", async () => {
+    it("sets up interval with default 120s when no options provided", async () => {
       const setIntervalSpy = jest.spyOn(global, "setInterval");
 
       (ConfigManager.getConfig as jest.Mock).mockReturnValue({

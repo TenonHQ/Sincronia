@@ -31,10 +31,11 @@ const ACTIVE_TASK_FILE = path.join(PROJECT_ROOT, ".sinc-active-task.json");
 const CLICKUP_TOKEN = process.env.CLICKUP_API_TOKEN || "";
 const CLICKUP_TEAM_ID = process.env.CLICKUP_TEAM_ID || "";
 
-// Rate limiting for ServiceNow API calls (matches core snClient 20 RPS)
-// Promise-based queue: delays requests when approaching the limit instead of throwing
+// Rate limiting for ServiceNow API calls.
+// Dashboard uses 10 RPS so that combined with core's 20 RPS the total stays
+// under ServiceNow's per-user throttle when both are active simultaneously.
 var snRequestTimestamps = [];
-var MAX_SN_RPS = 20;
+var MAX_SN_RPS = 10;
 var SN_WINDOW_MS = 1000;
 
 function waitForRateLimit() {

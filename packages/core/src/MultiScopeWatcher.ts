@@ -36,17 +36,22 @@ interface UpdateSetSelection {
 
 type UpdateSetConfig = Record<string, UpdateSetSelection>;
 
+interface WatcherOptions {
+  monitorIntervalMs: number; // 0 = disabled
+}
+
 class MultiScopeWatcherManager {
   private scopeWatchers: Map<string, ScopeWatcher> = new Map();
   private updateSetCheckInterval: NodeJS.Timeout | null = null;
   private scopeLock: Promise<void> = Promise.resolve();
 
-  async startWatchingAllScopes() {
+  async startWatchingAllScopes(options?: WatcherOptions) {
+    var opts = options || { monitorIntervalMs: 120000 };
     try {
       // Load configuration
       await ConfigManager.loadConfigs();
       const config = ConfigManager.getConfig();
-      
+
       if (!config.scopes) {
         logger.error("No scopes defined in sinc.config.js");
         throw new Error("No scopes defined in configuration");
@@ -59,7 +64,7 @@ class MultiScopeWatcherManager {
       for (const scopeName of scopes) {
         const scopeConfig = config.scopes[scopeName];
         let sourceDirectory: string;
-        
+
         if (typeof scopeConfig === "object" && scopeConfig.sourceDirectory) {
           sourceDirectory = path.resolve(ConfigManager.getRootDir(), scopeConfig.sourceDirectory);
         } else {
@@ -70,8 +75,12 @@ class MultiScopeWatcherManager {
         this.startWatchingScope(scopeName, sourceDirectory);
       }
 
-      // Start periodic update set checking
-      this.startUpdateSetMonitoring();
+      // Start periodic update set checking (unless disabled)
+      if (opts.monitorIntervalMs > 0) {
+        this.startUpdateSetMonitoring(opts.monitorIntervalMs);
+      } else {
+        logger.info("Update set monitoring disabled (--noMonitoring)");
+      }
 
       logger.success("✅ Multi-scope watch started successfully!");
       logger.info("Watching for file changes across all scopes...");
@@ -459,68 +468,46 @@ class MultiScopeWatcherManager {
     }
   }
 
-  private async startUpdateSetMonitoring() {
+  private async startUpdateSetMonitoring(intervalMs: number) {
     // Check update sets immediately on start
     await this.checkAllUpdateSets();
 
-    // Then check every 2 minutes
+    logger.info("Update set monitoring interval: " + Math.round(intervalMs / 1000) + "s");
     this.updateSetCheckInterval = setInterval(async () => {
       await this.checkAllUpdateSets();
-    }, 120000); // 2 minutes = 120000ms
+    }, intervalMs);
   }
 
   private async checkAllUpdateSets() {
+    // Budget: monitoring should not consume more than 5% of the 20 RPS rate limit
+    // per cycle. That gives us ~1 request/second budget. Each scope check uses
+    // ~6 API calls (switchToScope ~3, getUserSysId ~1, pref ~1, details ~1).
+    // To stay within budget we use the local update set config file instead of
+    // querying ServiceNow for each scope — 0 API calls when config is present.
     try {
-      const { defaultClient, unwrapSNResponse } = await import("./snClient");
-      const client = defaultClient();
       const config = ConfigManager.getConfig();
-      
       if (!config.scopes) return;
 
       const scopes = Object.keys(config.scopes);
+      var updateSetConfig = this.getUpdateSetConfig();
+
       logger.info("\n" + "=".repeat(60));
       logger.info("Update Set Status Check");
       logger.info("=".repeat(60));
 
-      for (const scopeName of scopes) {
-        try {
-          // Switch to scope to check its update set
-          await this.switchToScope(scopeName);
-
-          // Get user sys_id
-          const userResponse = await unwrapSNResponse(client.getUserSysId());
-          if (!userResponse || !Array.isArray(userResponse) || userResponse.length === 0 || !userResponse[0].sys_id) {
-            logger.warn(`[${scopeName}] Could not get user information`);
-            continue;
-          }
-
-          // Get current update set preference
-          const updateSetPref = await unwrapSNResponse(
-            client.getCurrentUpdateSetUserPref(userResponse[0].sys_id)
-          );
-
-          if (updateSetPref && Array.isArray(updateSetPref) && updateSetPref.length > 0 && (updateSetPref[0] as any).value) {
-            // Get update set details
-            const updateSetId = (updateSetPref[0] as any).value;
-            const updateSetDetails = await this.getUpdateSetDetails(updateSetId);
-            
-            if (updateSetDetails) {
-              const isDefault = updateSetDetails.name === "Default" || 
-                               updateSetDetails.name.toLowerCase().includes("default");
-              
-              if (isDefault) {
-                logger.warn(`⚠️  [${scopeName}] Currently in DEFAULT update set!`);
-              } else {
-                logger.info(`✅ [${scopeName}] Update Set: ${updateSetDetails.name}`);
-              }
-            } else {
-              logger.info(`[${scopeName}] Update Set ID: ${updateSetId}`);
-            }
+      for (var i = 0; i < scopes.length; i++) {
+        var scopeName = scopes[i];
+        var mapping = updateSetConfig[scopeName];
+        if (mapping && mapping.name) {
+          var isDefault = mapping.name === "Default" ||
+            mapping.name.toLowerCase().indexOf("default") !== -1;
+          if (isDefault) {
+            logger.warn(`⚠️  [${scopeName}] Currently in DEFAULT update set!`);
           } else {
-            logger.warn(`⚠️  [${scopeName}] No update set selected or in DEFAULT`);
+            logger.info(`✅ [${scopeName}] Update Set: ${mapping.name}`);
           }
-        } catch (error) {
-          logger.error(`[${scopeName}] Error checking update set: ${error}`);
+        } else {
+          logger.warn(`⚠️  [${scopeName}] No update set configured`);
         }
       }
 
@@ -583,8 +570,8 @@ class MultiScopeWatcherManager {
 
 export const multiScopeWatcher = new MultiScopeWatcherManager();
 
-export function startMultiScopeWatching() {
-  return multiScopeWatcher.startWatchingAllScopes();
+export function startMultiScopeWatching(options?: WatcherOptions) {
+  return multiScopeWatcher.startWatchingAllScopes(options);
 }
 
 export function stopMultiScopeWatching() {

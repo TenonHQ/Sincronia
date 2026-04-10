@@ -60,6 +60,16 @@ export async function initCommands() {
             type: "number",
             describe: "Dashboard port (default: DASHBOARD_PORT env or 3456)",
           },
+          monitorInterval: {
+            type: "number",
+            default: 120,
+            describe: "Update set monitoring interval in seconds (default: 120)",
+          },
+          noMonitoring: {
+            type: "boolean",
+            default: false,
+            describe: "Disable background update set monitoring",
+          },
         });
         return cmdArgs;
       },

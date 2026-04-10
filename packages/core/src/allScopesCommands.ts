@@ -433,8 +433,10 @@ export async function watchAllScopesCommand(args: Sinc.WatchCmdArgs) {
     // Import and start the multi-scope watcher
     const { startMultiScopeWatching } = await import("./MultiScopeWatcher");
 
-    // Start watching all scopes
-    await startMultiScopeWatching();
+    // Start watching all scopes with monitoring options
+    await startMultiScopeWatching({
+      monitorIntervalMs: args.noMonitoring ? 0 : (args.monitorInterval || 120) * 1000,
+    });
 
     // Keep the process running
     process.on("SIGINT", async () => {
