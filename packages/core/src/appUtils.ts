@@ -465,12 +465,13 @@ const pushRec = async (
   builtRec: Record<string, string>,
   summary?: string,
   scope?: string,
+  updateSetConfig?: UpdateSetConfig,
 ) => {
   const recSummary = summary ?? `${table} > ${sysId}`;
   try {
-    // Check if an update set is configured for this scope
-    const updateSetConfig = getUpdateSetConfig();
-    const updateSet = scope ? updateSetConfig[scope] : undefined;
+    // Use the batch-level config passed from pushFiles() to avoid re-reading per record
+    const config = updateSetConfig || {};
+    const updateSet = scope ? config[scope] : undefined;
 
     const pushFn = updateSet
       ? () => {
@@ -539,6 +540,7 @@ export const pushFiles = async (
       buildRes.builtRec,
       recSummary,
       scope,
+      updateSetConfig,
     );
     tick();
     return pushRes;
