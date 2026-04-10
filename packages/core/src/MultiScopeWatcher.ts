@@ -44,6 +44,8 @@ class MultiScopeWatcherManager {
   private scopeWatchers: Map<string, ScopeWatcher> = new Map();
   private updateSetCheckInterval: NodeJS.Timeout | null = null;
   private scopeLock: Promise<void> = Promise.resolve();
+  private cachedScope: string | null = null;
+  private cachedUserSysId: string | null = null;
 
   async startWatchingAllScopes(options?: WatcherOptions) {
     var opts = options || { monitorIntervalMs: 120000 };
@@ -453,25 +455,34 @@ class MultiScopeWatcherManager {
   }
 
   private async switchToScope(scopeName: string) {
+    // Skip if already on the correct scope
+    if (this.cachedScope === scopeName) {
+      logger.debug(`Already on scope ${scopeName}, skipping switch`);
+      return;
+    }
+
     try {
       const { defaultClient, unwrapSNResponse } = await import("./snClient");
       const client = defaultClient();
-      
+
       // Get the scope ID
       const scopeResponse = await unwrapSNResponse(client.getScopeId(scopeName));
       if (!scopeResponse || !Array.isArray(scopeResponse) || scopeResponse.length === 0 || !scopeResponse[0].sys_id) {
         throw new Error(`Scope ${scopeName} not found`);
       }
 
-      // Get user sys_id
-      const userResponse = await unwrapSNResponse(client.getUserSysId());
-      if (!userResponse || !Array.isArray(userResponse) || userResponse.length === 0 || !userResponse[0].sys_id) {
-        throw new Error("Could not get user sys_id");
+      // Get user sys_id (cached for the session — never changes)
+      if (!this.cachedUserSysId) {
+        const userResponse = await unwrapSNResponse(client.getUserSysId());
+        if (!userResponse || !Array.isArray(userResponse) || userResponse.length === 0 || !userResponse[0].sys_id) {
+          throw new Error("Could not get user sys_id");
+        }
+        this.cachedUserSysId = userResponse[0].sys_id;
       }
 
       // Get current app preference
       const prefResponse = await unwrapSNResponse(
-        client.getCurrentAppUserPrefSysId(userResponse[0].sys_id)
+        client.getCurrentAppUserPrefSysId(this.cachedUserSysId)
       );
 
       if (prefResponse && Array.isArray(prefResponse) && prefResponse.length > 0 && prefResponse[0].sys_id) {
@@ -479,11 +490,14 @@ class MultiScopeWatcherManager {
         await client.updateCurrentAppUserPref(scopeResponse[0].sys_id, prefResponse[0].sys_id);
       } else {
         // Create new preference
-        await client.createCurrentAppUserPref(scopeResponse[0].sys_id, userResponse[0].sys_id);
+        await client.createCurrentAppUserPref(scopeResponse[0].sys_id, this.cachedUserSysId);
       }
 
+      this.cachedScope = scopeName;
       logger.debug(`Switched to scope: ${scopeName}`);
     } catch (error) {
+      // Invalidate cache on failure
+      this.cachedScope = null;
       logger.error(`Failed to switch to scope ${scopeName}: ${error}`);
       throw error;
     }

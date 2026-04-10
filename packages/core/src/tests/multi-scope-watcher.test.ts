@@ -192,6 +192,9 @@ describe("MultiScopeWatcherManager", () => {
     capturedDebounceFns.length = 0;
     // Reset the internal state by stopping any previous watchers
     stopMultiScopeWatching();
+    // Reset scope and user caches (US-013)
+    (multiScopeWatcher as any).cachedScope = null;
+    (multiScopeWatcher as any).cachedUserSysId = null;
 
     // Default: scope switching succeeds
     mockSNClient.getScopeId.mockResolvedValue([{ sys_id: "scope_sys_id" }]);
