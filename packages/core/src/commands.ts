@@ -12,6 +12,8 @@ import { defaultClient, unwrapSNResponse } from "./snClient";
 import inquirer from "inquirer";
 import { gitDiffToEncodedPaths } from "./gitUtils";
 import { encodedPathsToFilePaths } from "./FileUtils";
+import * as path from "path";
+import * as fs from "fs";
 
 export function setLogLevel(args: Sinc.SharedCmdArgs) {
   logger.setLogLevel(args.logLevel);
@@ -273,6 +275,25 @@ export async function deployCommand(args: Sinc.SharedCmdArgs): Promise<void> {
     logPushResults(pushResults);
   } catch (e) {
     throw e;
+  }
+}
+
+export async function taskClearCommand(args: Sinc.SharedCmdArgs) {
+  setLogLevel(args);
+  var taskPath = path.resolve(process.cwd(), ".sinc-active-task.json");
+  if (fs.existsSync(taskPath)) {
+    try {
+      var parsed = JSON.parse(fs.readFileSync(taskPath, "utf8"));
+      var taskName = parsed.taskName || parsed.taskId || "unknown";
+      fs.unlinkSync(taskPath);
+      logger.success("Active task '" + taskName + "' cleared.");
+    } catch (e) {
+      // File exists but can't be parsed — still remove it
+      fs.unlinkSync(taskPath);
+      logger.success("Active task file removed.");
+    }
+  } else {
+    logger.info("No active task is currently set.");
   }
 }
 

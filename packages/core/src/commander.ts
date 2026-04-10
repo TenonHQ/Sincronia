@@ -7,6 +7,7 @@ import {
   buildCommand,
   deployCommand,
   statusCommand,
+  taskClearCommand,
 } from "./commands";
 
 import { initScopesCommand, watchAllScopesCommand } from "./allScopesCommands";
@@ -600,6 +601,23 @@ export async function initCommands() {
             clickupListsCommand,
           )
           .demandCommand(1, "Please specify a clickup subcommand");
+      },
+      function () {
+        /* subcommands handle execution */
+      },
+    )
+    .command(
+      "task",
+      "Manage the active ClickUp task for update set routing",
+      function (cmdArgs: TSFIXME) {
+        return cmdArgs
+          .command(
+            "clear",
+            "Clear the active task (removes .sinc-active-task.json)",
+            sharedOptions,
+            taskClearCommand,
+          )
+          .demandCommand(1, "Please specify a task subcommand (e.g., clear)");
       },
       function () {
         /* subcommands handle execution */
