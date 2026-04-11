@@ -68,16 +68,16 @@ Sincronia checks that your local manifest scope matches the active scope on the 
 
 1. **Run a local build to see errors:** `npx sinc build`
 2. **Common Babel errors:**
-   - "Cannot find module '@sincronia/remove-modules'" -- Need `npm i -D @sincronia/babel-plugin-remove-modules`
-   - "Cannot find module '@sincronia/servicenow'" -- Need `npm i -D @sincronia/babel-preset-servicenow`
-   - Note: Babel package names differ from sinc.config.js names. In Babel config, `@sincronia/remove-modules` refers to npm package `@sincronia/babel-plugin-remove-modules`.
+   - "Cannot find module '@tenonhq/sincronia-remove-modules'" -- Need `npm i -D @tenonhq/sincronia-babel-plugin-remove-modules`
+   - "Cannot find module '@tenonhq/sincronia-servicenow'" -- Need `npm i -D @tenonhq/sincronia-babel-preset-servicenow`
+   - Note: Babel package names differ from sinc.config.js names. In Babel config, `@tenonhq/sincronia-remove-modules` refers to npm package `@tenonhq/sincronia-babel-plugin-remove-modules`.
 
 3. **Common TypeScript errors:**
    - Type errors block the build. Fix the types or set `transpile: true` to skip type checking.
    - Missing `tsconfig.json` -- Plugin works without it but may produce unexpected output.
 
 4. **Rhino engine errors (code works locally but fails in ServiceNow):**
-   - Missing `@sincronia/servicenow` preset -- `__proto__` references and reserved word property access crash Rhino.
+   - Missing `@tenonhq/sincronia-servicenow` preset -- `__proto__` references and reserved word property access crash Rhino.
    - Using `useBuiltIns` with `@babel/env` -- Polyfills fail because Rhino locks base class prototypes.
    - Using `for...of`, `Map`, `Set`, `WeakMap` -- These require prototype extensions that Rhino blocks.
    - Using arrow functions in class properties without `@babel/proposal-class-properties`.

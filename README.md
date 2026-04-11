@@ -58,10 +58,10 @@ In order to use Sincronia, you will need:
 1. Create a folder to store the scoped app code.
 2. In a terminal, run `npm init` inside the newly created folder and follow the instructions to set up your node module.
 3. Import [the scoped app](https://github.com/tenon/sincronia-server-scoped-app) from source control into your instance.
-4. Install `@sincronia/core`
+4. Install `@tenonhq/sincronia-core`
 
 ```bash
-npm i -D @sincronia/core
+npm i -D @tenonhq/sincronia-core
 ```
 
 4. Initialize your Sincronia project
@@ -326,7 +326,7 @@ module.exports = {
         {
           // The name of the plugin, it is the same as the name of the NPM package of
           // the plugin.
-          name: "@sincronia/typescript-plugin",
+          name: "@tenonhq/sincronia-typescript-plugin",
           // Options to pass to the plugin. This will be defined by the plugin itself.
           // In this case, we are telling the typescript plugin to only type check and
           // not transpile.
@@ -396,9 +396,9 @@ For an example project, we uploaded the [server side code for Sincronia](https:/
 
 | Name                                                                                                                | Description                                 |
 | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| [@sincronia/babel-plugin](https://github.com/tenon/sincronia/blob/master/packages/babel-plugin/README.md)           | Runs Babel on .js/.ts files                 |
-| [@sincronia/prettier-plugin](https://github.com/tenon/sincronia/blob/master/packages/prettier-plugin/README.md)     | Prettifies your output files using Prettier |
-| [@sincronia/sass-plugin](https://github.com/tenon/sincronia/blob/master/packages/sass-plugin/README.md)             | Runs the Sass compiler on your files        |
-| [@sincronia/typescript-plugin](https://github.com/tenon/sincronia/blob/master/packages/typescript-plugin/README.md) | Type checks and compiles TypeScript files   |
-| [@sincronia/webpack-plugin](https://github.com/tenon/sincronia/blob/master/packages/webpack-plugin/README.md)       | Creates Webpack bundles with your files     |
-| [@sincronia/eslint-plugin](https://github.com/tenon/sincronia/blob/master/packages/eslint-plugin/README.md)         | Runs ESLint on your files on build          |
+| [@tenonhq/sincronia-babel-plugin](https://github.com/tenon/sincronia/blob/master/packages/babel-plugin/README.md)           | Runs Babel on .js/.ts files                 |
+| [@tenonhq/sincronia-prettier-plugin](https://github.com/tenon/sincronia/blob/master/packages/prettier-plugin/README.md)     | Prettifies your output files using Prettier |
+| [@tenonhq/sincronia-sass-plugin](https://github.com/tenon/sincronia/blob/master/packages/sass-plugin/README.md)             | Runs the Sass compiler on your files        |
+| [@tenonhq/sincronia-typescript-plugin](https://github.com/tenon/sincronia/blob/master/packages/typescript-plugin/README.md) | Type checks and compiles TypeScript files   |
+| [@tenonhq/sincronia-webpack-plugin](https://github.com/tenon/sincronia/blob/master/packages/webpack-plugin/README.md)       | Creates Webpack bundles with your files     |
+| [@tenonhq/sincronia-eslint-plugin](https://github.com/tenon/sincronia/blob/master/packages/eslint-plugin/README.md)         | Runs ESLint on your files on build          |

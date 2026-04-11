@@ -54,27 +54,27 @@ For a typical TypeScript server-side pipeline (`typescript-plugin` + `babel-plug
 **Stage 2: Babel Plugin** (with presets and plugins)
 
 Babel plugins run first (in order):
-1. `@sincronia/remove-modules` -- Strips `import`/`export` statements
+1. `@tenonhq/sincronia-remove-modules` -- Strips `import`/`export` statements
 2. `@babel/proposal-class-properties` -- Transforms class property syntax
 3. `@babel/proposal-object-rest-spread` -- Transforms `...spread` syntax
 
 Babel presets run in reverse order:
 1. `@babel/typescript` (listed last, runs first) -- Strips type annotations
 2. `@babel/env` -- Transpiles ES6+ to ES5
-3. `@sincronia/servicenow` (listed first, runs last) -- Sanitizes for Rhino: replaces `__proto__` with `__proto_sn__`, converts `obj.default` to `obj["default"]`
+3. `@tenonhq/sincronia-servicenow` (listed first, runs last) -- Sanitizes for Rhino: replaces `__proto__` with `__proto_sn__`, converts `obj.default` to `obj["default"]`
 
 ### Step 4: Diagnose Common Issues
 
 **"Cannot read property 'X' of undefined" in ServiceNow**
-- Likely: `import` statements were not removed. Check that `@sincronia/remove-modules` is in Babel plugins.
+- Likely: `import` statements were not removed. Check that `@tenonhq/sincronia-remove-modules` is in Babel plugins.
 - The import variable becomes `undefined` because ServiceNow has no module system.
 
 **"Illegal access to reserved word" in ServiceNow**
-- Likely: Missing `@sincronia/servicenow` preset. Code like `obj.default` or `obj.class` crashes Rhino.
-- Fix: Ensure `@sincronia/servicenow` is the FIRST preset listed (= runs LAST).
+- Likely: Missing `@tenonhq/sincronia-servicenow` preset. Code like `obj.default` or `obj.class` crashes Rhino.
+- Fix: Ensure `@tenonhq/sincronia-servicenow` is the FIRST preset listed (= runs LAST).
 
 **"__proto__" security error in ServiceNow**
-- Likely: Missing `@sincronia/servicenow` preset. Babel's class transpilation generates `__proto__` references.
+- Likely: Missing `@tenonhq/sincronia-servicenow` preset. Babel's class transpilation generates `__proto__` references.
 
 **"TypeError: Cannot extend a non-class" or prototype errors**
 - Likely: Using `useBuiltIns` with `@babel/env`. Rhino locks base class prototypes.
@@ -85,7 +85,7 @@ Babel presets run in reverse order:
 
 ### Special Comment Tags
 
-The `@sincronia/remove-modules` Babel plugin supports these comment tags:
+The `@tenonhq/sincronia-remove-modules` Babel plugin supports these comment tags:
 
 **`@keepModule`** -- Preserve an import (for actual ServiceNow modules):
 ```javascript

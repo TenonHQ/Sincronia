@@ -1,4 +1,4 @@
-# @sincronia/typescript-plugin
+# @tenonhq/sincronia-typescript-plugin
 
 ## Overview
 
@@ -7,7 +7,7 @@ This plugin allows you to run the [TypeScript](https://www.typescriptlang.org/) 
 ## Installation
 
 ```bash
-npm i -D @sincronia/typescript-plugin
+npm i -D @tenonhq/sincronia-typescript-plugin
 ```
 
 ## Options
@@ -32,7 +32,7 @@ module.exports={
   rules:{
     match:/\.ts$/,
     plugins:[
-      name:"@sincronia/typescript-plugin",
+      name:"@tenonhq/sincronia-typescript-plugin",
       options:{
         transpile:false
       }

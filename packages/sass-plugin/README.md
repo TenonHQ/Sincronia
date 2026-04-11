@@ -1,4 +1,4 @@
-# @sincronia/sass-plugin
+# @tenonhq/sincronia-sass-plugin
 
 ## Overview
 
@@ -7,7 +7,7 @@ This plugin allows you to run [Sass](https://sass-lang.com/) on scss/sass files.
 ## Installation
 
 ```bash
-npm i -D @sincronia/sass-plugin
+npm i -D @tenonhq/sincronia-sass-plugin
 ```
 
 ## Options
@@ -25,7 +25,7 @@ module.exports={
     match:/\.scss$/,
     plugins:[
       {
-        name:"@sincronia/sass-plugin",
+        name:"@tenonhq/sincronia-sass-plugin",
         //No options necessary
         options:{}
       }

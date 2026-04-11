@@ -35,7 +35,7 @@ Help the user set up a new Sincronia project or add a new scope to an existing p
 ```bash
 mkdir my-servicenow-app && cd my-servicenow-app
 npm init -y
-npm i -D @sincronia/core
+npm i -D @tenonhq/sincronia-core
 ```
 
 #### Run the init wizard

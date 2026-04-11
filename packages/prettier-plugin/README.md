@@ -1,4 +1,4 @@
-# @sincronia/prettier-plugin
+# @tenonhq/sincronia-prettier-plugin
 
 ## Overview
 
@@ -7,7 +7,7 @@ This plugin allows you to run [Prettier](https://prettier.io/) on all supported 
 ## Installation
 
 ```bash
-npm i -D @sincronia/prettier-plugin
+npm i -D @tenonhq/sincronia-prettier-plugin
 ```
 
 ## Options
@@ -29,7 +29,7 @@ module.exports={
   rules:{
     match:/\.js$/,
     plugins:[
-      name:"@sincronia/prettier-plugin",
+      name:"@tenonhq/sincronia-prettier-plugin",
       //Prettier options
       options:{
         //sets tabs to be 2 spaces

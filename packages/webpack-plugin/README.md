@@ -1,4 +1,4 @@
-# @sincronia/webpack-plugin
+# @tenonhq/sincronia-webpack-plugin
 
 ## Overview
 
@@ -7,7 +7,7 @@ This plugin allows you to run [Webpack](https://webpack.js.org/) on your desired
 ## Installation
 
 ```bash
-npm i -D @sincronia/webpack-plugin
+npm i -D @tenonhq/sincronia-webpack-plugin
 ```
 
 ## Options
@@ -33,7 +33,7 @@ module.exports={
   rules:{
     match:/\.wp\.js$/,
     plugins:[
-      name:"@sincronia/webpack-plugin",
+      name:"@tenonhq/sincronia-webpack-plugin",
       options:{
         configGenerator:(context)=>{
           mode:"production",
