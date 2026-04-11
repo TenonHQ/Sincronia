@@ -45,7 +45,6 @@ class MultiScopeWatcherManager {
   private updateSetCheckInterval: NodeJS.Timeout | null = null;
   private scopeLock: Promise<void> = Promise.resolve();
   private cachedScope: string | null = null;
-  private cachedUserSysId: string | null = null;
   private pendingScopes: Map<string, number> = new Map(); // scope -> first change timestamp
   private globalProcessQueue: ReturnType<typeof debounce> | null = null;
 
@@ -213,9 +212,46 @@ class MultiScopeWatcherManager {
 
     var activeTask = this.readActiveTask();
     if (!activeTask) {
-      logger.warn(
-        `[${scopeName}] No update set configured for scope ${scopeName}. Changes will go to Default. Use sinc createUpdateSet or activate a task in the dashboard.`
-      );
+      // No active task — try to resolve the current update set from the ServiceNow
+      // session so pushWithUpdateSet can be used instead of the fallback updateRecord.
+      try {
+        var { defaultClient } = await import("./snClient");
+        var sessionClient = defaultClient();
+
+        var curResp = await sessionClient.getCurrentUpdateSet(scopeName);
+        var curData = curResp.data;
+        if (curData && (curData as any).result) {
+          curData = (curData as any).result;
+        }
+        var curSysId = curData && (curData as any).sysId ? (curData as any).sysId : null;
+        var curName = curData && (curData as any).name ? (curData as any).name : null;
+
+        if (curSysId && curName) {
+          var isDefault = curName === "Default" || curName.toLowerCase().indexOf("default") !== -1;
+          if (isDefault) {
+            logger.warn(
+              `[${scopeName}] No update set configured and current update set is Default. ` +
+              `Use sinc createUpdateSet or activate a task in the dashboard.`
+            );
+          } else {
+            // Use the session's current non-Default update set
+            config = this.getUpdateSetConfig();
+            config[scopeName] = { sys_id: curSysId, name: curName };
+            this.saveUpdateSetConfig(config);
+            logger.info(`[${scopeName}] Using session update set: ${curName}`);
+          }
+        } else {
+          logger.warn(
+            `[${scopeName}] No update set configured for scope ${scopeName}. ` +
+            `Use sinc createUpdateSet or activate a task in the dashboard.`
+          );
+        }
+      } catch (queryErr) {
+        logger.warn(
+          `[${scopeName}] No update set configured and could not query current update set. ` +
+          `Changes will use direct Table API. Use sinc createUpdateSet or activate a task in the dashboard.`
+        );
+      }
       return;
     }
 
@@ -488,36 +524,15 @@ class MultiScopeWatcherManager {
     }
 
     try {
-      const { defaultClient, unwrapSNResponse } = await import("./snClient");
-      const client = defaultClient();
+      var { defaultClient } = await import("./snClient");
+      var client = defaultClient();
 
-      // Get the scope ID
-      const scopeResponse = await unwrapSNResponse(client.getScopeId(scopeName));
-      if (!scopeResponse || !Array.isArray(scopeResponse) || scopeResponse.length === 0 || !scopeResponse[0].sys_id) {
-        throw new Error(`Scope ${scopeName} not found`);
-      }
-
-      // Get user sys_id (cached for the session — never changes)
-      if (!this.cachedUserSysId) {
-        const userResponse = await unwrapSNResponse(client.getUserSysId());
-        if (!userResponse || !Array.isArray(userResponse) || userResponse.length === 0 || !userResponse[0].sys_id) {
-          throw new Error("Could not get user sys_id");
-        }
-        this.cachedUserSysId = userResponse[0].sys_id;
-      }
-
-      // Get current app preference
-      const prefResponse = await unwrapSNResponse(
-        client.getCurrentAppUserPrefSysId(this.cachedUserSysId)
-      );
-
-      if (prefResponse && Array.isArray(prefResponse) && prefResponse.length > 0 && prefResponse[0].sys_id) {
-        // Update existing preference
-        await client.updateCurrentAppUserPref(scopeResponse[0].sys_id, prefResponse[0].sys_id);
-      } else {
-        // Create new preference
-        await client.createCurrentAppUserPref(scopeResponse[0].sys_id, this.cachedUserSysId);
-      }
+      // Use the Claude REST API changeScope endpoint to switch the session scope.
+      // This uses gs.setCurrentApplicationId() server-side, which correctly changes
+      // the REST API session scope. The previous approach used user preference updates
+      // (apps.current_app) which only writes a DB record and does NOT affect the
+      // active REST session — causing updateRecord() to operate in the wrong scope.
+      await client.changeScope(scopeName);
 
       this.cachedScope = scopeName;
       logger.debug(`Switched to scope: ${scopeName}`);
