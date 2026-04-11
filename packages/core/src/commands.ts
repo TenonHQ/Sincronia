@@ -12,6 +12,8 @@ import { defaultClient, unwrapSNResponse } from "./snClient";
 import inquirer from "inquirer";
 import { gitDiffToEncodedPaths } from "./gitUtils";
 import { encodedPathsToFilePaths } from "./FileUtils";
+import * as path from "path";
+import * as fs from "fs";
 
 export function setLogLevel(args: Sinc.SharedCmdArgs) {
   logger.setLogLevel(args.logLevel);
@@ -276,6 +278,25 @@ export async function deployCommand(args: Sinc.SharedCmdArgs): Promise<void> {
   }
 }
 
+export async function taskClearCommand(args: Sinc.SharedCmdArgs) {
+  setLogLevel(args);
+  var taskPath = path.resolve(process.cwd(), ".sinc-active-task.json");
+  if (fs.existsSync(taskPath)) {
+    try {
+      var parsed = JSON.parse(fs.readFileSync(taskPath, "utf8"));
+      var taskName = parsed.taskName || parsed.taskId || "unknown";
+      fs.unlinkSync(taskPath);
+      logger.success("Active task '" + taskName + "' cleared.");
+    } catch (e) {
+      // File exists but can't be parsed — still remove it
+      fs.unlinkSync(taskPath);
+      logger.success("Active task file removed.");
+    }
+  } else {
+    logger.info("No active task is currently set.");
+  }
+}
+
 export async function statusCommand() {
   try {
     const client = defaultClient();
@@ -284,6 +305,17 @@ export async function statusCommand() {
     logger.info("Instance:      " + (process.env.SN_INSTANCE || "not set"));
     logger.info("User:          " + (process.env.SN_USER || "not set"));
     logger.info("Active scope:  " + scopeObj.scope);
+
+    // Read update set config
+    var updateSetConfig: Record<string, { sys_id: string; name: string }> = {};
+    var updateSetConfigPath = path.resolve(process.cwd(), ".sinc-update-sets.json");
+    try {
+      if (fs.existsSync(updateSetConfigPath)) {
+        updateSetConfig = JSON.parse(fs.readFileSync(updateSetConfigPath, "utf8"));
+      }
+    } catch (e) {
+      logger.warn("Failed to parse .sinc-update-sets.json: " + (e instanceof Error ? e.message : String(e)));
+    }
 
     if (config.scopes) {
       var scopeNames = Object.keys(config.scopes);
@@ -295,7 +327,10 @@ export async function statusCommand() {
           ? scopeConf.sourceDirectory
           : "src/" + scopeName;
         var marker = scopeName === scopeObj.scope ? " (active)" : "";
-        logger.info("  " + scopeName + marker + " — " + srcDir);
+        var updateSetInfo = updateSetConfig[scopeName]
+          ? " [update set: " + updateSetConfig[scopeName].name + "]"
+          : " [no update set configured]";
+        logger.info("  " + scopeName + marker + " — " + srcDir + updateSetInfo);
       }
     }
   } catch (e) {

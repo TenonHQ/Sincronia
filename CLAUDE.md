@@ -64,6 +64,7 @@ npx sinc dashboard           # Launch the Update Set Dashboard web UI
 npx sinc dashboard --port 3457  # Dashboard on custom port
 npx sinc schema pull         # Pull ServiceNow table schemas
 npx sinc init-claude         # Install Claude Code skills
+npx sinc task clear          # Deselect active task (removes .sinc-active-task.json). Use when switching tasks or to avoid pushing to a stale task's update set
 npx sinc clickup             # ClickUp task management (subcommands: tasks, task, create, update, comment, teams, setup, spaces, lists)
 ```
 
@@ -71,7 +72,7 @@ npx sinc clickup             # ClickUp task management (subcommands: tasks, task
 
 ### Core Components
 
-Sincronia is a Lerna monorepo with 13 packages (all published under `@tenonhq/sincronia-*`):
+Sincronia is a Lerna monorepo with 16 packages (all published under `@tenonhq/sincronia-*`):
 
 - **sincronia-core** — CLI + core synchronization logic (the `sinc` binary)
 - **sincronia-types** — TypeScript type definitions
@@ -84,6 +85,9 @@ Sincronia is a Lerna monorepo with 13 packages (all published under `@tenonhq/si
 - **sincronia-eslint-plugin** — ESLint code quality
 - **sincronia-prettier-plugin** — Prettier formatting
 - **sincronia-clickup** — ClickUp API client for task management
+- **sincronia-google-auth** — Shared Google OAuth2 authentication
+- **sincronia-google-calendar** — Google Calendar API client
+- **sincronia-gmail** — Gmail API client
 - **sincronia-dashboard** — Update Set Dashboard web UI
 - **sincronia-schema** — ServiceNow table schema fetcher
 
@@ -98,7 +102,7 @@ Sincronia is a Lerna monorepo with 13 packages (all published under `@tenonhq/si
 
 ```
 Sincronia/
-├── packages/                          # Lerna packages (13 packages)
+├── packages/                          # Lerna packages (16 packages)
 │   ├── core/                          # CLI + core sync logic
 │   ├── types/                         # TypeScript definitions
 │   ├── babel-plugin/                  # Babel plugin
@@ -110,6 +114,9 @@ Sincronia/
 │   ├── eslint-plugin/                 # ESLint plugin
 │   ├── prettier-plugin/               # Prettier plugin
 │   ├── clickup/                       # ClickUp API client
+│   ├── google-auth/                   # Shared Google OAuth2 authentication
+│   ├── google-calendar/               # Google Calendar API client
+│   ├── gmail/                         # Gmail API client
 │   ├── dashboard/                     # Update Set Dashboard UI
 │   └── schema/                        # ServiceNow schema fetcher
 ├── docs/                              # QA documentation
@@ -178,9 +185,9 @@ module.exports = {
 
 ### Synced Table Types
 
-Sincronia synchronizes 12 ServiceNow table types:
+Sincronia synchronizes 16 ServiceNow table types:
 
-`sys_script_include`, `sys_script`, `sys_ui_script`, `sys_ui_page`, `sys_ux_client_script`, `sys_processor`, `sys_ws_operation`, `sys_rest_message_fn`, `sys_ui_action`, `sys_security_acl`, `sysevent_script_action`, `sys_ux_macroponent`
+`sys_script_include`, `sys_script`, `sys_ui_script`, `sys_ui_page`, `sys_ux_client_script`, `sys_processor`, `sys_ws_operation`, `sys_rest_message_fn`, `sys_ui_action`, `sys_security_acl`, `sysevent_script_action`, `sys_ux_macroponent`, `sys_ux_event`, `sys_ux_client_script_include`, `sys_ux_screen`, `sys_script_fix`
 
 See [ServiceNow/CLAUDE.md](../ServiceNow/CLAUDE.md) for the full table inventory.
 

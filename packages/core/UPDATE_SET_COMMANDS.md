@@ -16,7 +16,7 @@ These commands are included in the `@tenonhq/sincronia-core` package. Ensure you
 
 ## Prerequisites
 
-- Node.js v16 or higher (use `nvm use 16`)
+- Node.js v20 LTS or higher (use `nvm use 20`)
 - ServiceNow instance credentials configured in environment variables:
   - `SN_INSTANCE` - Your ServiceNow instance URL
   - `SN_USER` - Your ServiceNow username

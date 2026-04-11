@@ -154,9 +154,14 @@ const getTargetFieldFromPath = (
     : path.basename(filePath, ext);
 };
 
-export const getFileContextFromPath = (
+export interface FileContextResult {
+  context?: Sinc.FileContext;
+  skipReason?: string;
+}
+
+export const getFileContextWithSkipReason = (
   filePath: string,
-): Sinc.FileContext | undefined => {
+): FileContextResult => {
   const ext = getFileExtension(filePath);
   const [tableName, recordName] = path
     .dirname(filePath)
@@ -174,11 +179,11 @@ export const getFileContextFromPath = (
   if (ConfigManager.isMultiScopeManifest(manifest)) {
     var detectedScope = ConfigManager.resolveScopeFromPath(filePath);
     if (!detectedScope) {
-      return undefined;
+      return { skipReason: "scope not found" };
     }
     var scopeMan = ConfigManager.resolveManifestForScope(manifest, detectedScope);
     if (!scopeMan) {
-      return undefined;
+      return { skipReason: "scope manifest not found" };
     }
     scope = scopeMan.scope || detectedScope;
     tables = scopeMan.tables;
@@ -193,20 +198,28 @@ export const getFileContextFromPath = (
     const { files, sys_id } = record;
     const field = files.find((file) => file.name === targetField);
     if (!field) {
-      return undefined;
+      return { skipReason: "not in manifest" };
     }
     return {
-      filePath,
-      ext,
-      sys_id,
-      name: recordName,
-      scope,
-      tableName,
-      targetField,
+      context: {
+        filePath,
+        ext,
+        sys_id,
+        name: recordName,
+        scope,
+        tableName,
+        targetField,
+      },
     };
   } catch (e) {
-    return undefined;
+    return { skipReason: "not in manifest" };
   }
+};
+
+export const getFileContextFromPath = (
+  filePath: string,
+): Sinc.FileContext | undefined => {
+  return getFileContextWithSkipReason(filePath).context;
 };
 
 export const toAbsolutePath = (p: string): string =>

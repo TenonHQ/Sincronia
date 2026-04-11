@@ -31,10 +31,11 @@ const ACTIVE_TASK_FILE = path.join(PROJECT_ROOT, ".sinc-active-task.json");
 const CLICKUP_TOKEN = process.env.CLICKUP_API_TOKEN || "";
 const CLICKUP_TEAM_ID = process.env.CLICKUP_TEAM_ID || "";
 
-// Rate limiting for ServiceNow API calls (matches core snClient 20 RPS)
-// Promise-based queue: delays requests when approaching the limit instead of throwing
+// Rate limiting for ServiceNow API calls.
+// Dashboard uses 10 RPS so that combined with core's 20 RPS the total stays
+// under ServiceNow's per-user throttle when both are active simultaneously.
 var snRequestTimestamps = [];
-var MAX_SN_RPS = 20;
+var MAX_SN_RPS = 10;
 var SN_WINDOW_MS = 1000;
 
 function waitForRateLimit() {
@@ -514,6 +515,10 @@ async function findOrCreateUpdateSet(scope, scopeSysId, activeTask) {
   var baseName = activeTask.updateSetName;
   var taskId = activeTask.taskId;
 
+  if (!taskId || typeof taskId !== "string" || taskId.trim() === "") {
+    throw new Error("Cannot search for update sets: activeTask has an empty or missing taskId");
+  }
+
   // Query ServiceNow for existing update sets matching this task in this scope
   var query =
     "application.scope=" + scope +
@@ -556,12 +561,46 @@ async function findOrCreateUpdateSet(scope, scopeSysId, activeTask) {
     created = true;
   }
 
-  // Change the current update set on the ServiceNow instance
+  // Change the current update set on the ServiceNow instance and verify
   try {
     await snApi(
       "get",
       "api/cadso/claude/changeUpdateSet?sysId=" + encodeURIComponent(updateSet.sys_id)
     );
+
+    // Verify the switch was successful
+    var verifyResp = await snApi(
+      "get",
+      "api/cadso/claude/currentUpdateSet" + (scope ? "?scope=" + encodeURIComponent(scope) : "")
+    );
+    var verifyData = verifyResp.data;
+    if (verifyData && verifyData.result) {
+      verifyData = verifyData.result;
+    }
+    var currentSysId = verifyData && verifyData.sysId ? verifyData.sysId : null;
+    if (currentSysId !== updateSet.sys_id) {
+      // Retry once
+      console.warn("Update set verification failed, retrying switch...");
+      await snApi(
+        "get",
+        "api/cadso/claude/changeUpdateSet?sysId=" + encodeURIComponent(updateSet.sys_id)
+      );
+      var retryResp = await snApi(
+        "get",
+        "api/cadso/claude/currentUpdateSet" + (scope ? "?scope=" + encodeURIComponent(scope) : "")
+      );
+      var retryData = retryResp.data;
+      if (retryData && retryData.result) {
+        retryData = retryData.result;
+      }
+      var retrySysId = retryData && retryData.sysId ? retryData.sysId : null;
+      if (retrySysId !== updateSet.sys_id) {
+        var actualName = retryData && retryData.name ? retryData.name : "unknown";
+        console.error(
+          "Update set " + updateSet.name + " was created but could not be activated. Current update set is " + actualName + "."
+        );
+      }
+    }
   } catch (changeErr) {
     console.error("Warning: Could not auto-switch update set on instance:", changeErr.message);
   }
@@ -688,7 +727,7 @@ app.post("/api/clickup/deselect-task", function (req, res) {
 // Callers like dashboardCommand.ts and allScopesCommands.ts use
 // spawn("node", [serverPath]) which sets require.main === module.
 if (require.main === module) {
-  app.listen(PORT, function () {
+  app.listen(PORT, "127.0.0.1", function () {
     console.log("\n  Sincronia Update Set Dashboard");
     console.log("  Instance:  " + SN_INSTANCE);
     console.log("  Project:   " + PROJECT_ROOT);

@@ -28,14 +28,14 @@ Help the user set up a new Sincronia project or add a new scope to an existing p
 ### Scenario 1: New Project
 
 #### Prerequisites check
-- Node.js v16+ installed (`node -v`)
+- Node.js v20 LTS installed (`node -v`)
 - The Sincronia server scoped app is installed on the target ServiceNow instance
 
 #### Initialize the project
 ```bash
 mkdir my-servicenow-app && cd my-servicenow-app
 npm init -y
-npm i -D @sincronia/core
+npm i -D @tenonhq/sincronia-core
 ```
 
 #### Run the init wizard

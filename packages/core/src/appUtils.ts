@@ -5,8 +5,6 @@ import ProgressBar from "progress";
 import * as fUtils from "./FileUtils";
 import * as ConfigManager from "./config";
 import {
-  PUSH_RETRY_LIMIT,
-  PUSH_RETRY_WAIT,
   CONCURRENCY_TABLES,
   CONCURRENCY_RECORDS,
   CONCURRENCY_FILES,
@@ -19,6 +17,7 @@ import {
   defaultClient,
   processPushResponse,
   retryOnErr,
+  retryOnHttpErr,
   SNClient,
   unwrapSNResponse,
   unwrapTableAPIFirstItem,
@@ -40,7 +39,7 @@ const getUpdateSetConfig = (): UpdateSetConfig => {
       return JSON.parse(fs.readFileSync(configPath, "utf8"));
     }
   } catch (e) {
-    // Ignore parse errors
+    logger.warn(`Failed to parse update set config at ${configPath}: ${e instanceof Error ? e.message : String(e)}`);
   }
   return {};
 };
@@ -415,9 +414,20 @@ export const getAppFileList = async (
     typeof paths === "object"
       ? paths
       : await fUtils.encodedPathsToFilePaths(paths);
-  const appFileCtxs = validPaths
-    .map(fUtils.getFileContextFromPath)
-    .filter((maybeCtx): maybeCtx is Sinc.FileContext => !!maybeCtx);
+  const appFileCtxs: Sinc.FileContext[] = [];
+  validPaths.forEach(function (filePath) {
+    var result = fUtils.getFileContextWithSkipReason(filePath);
+    if (result.context) {
+      appFileCtxs.push(result.context);
+    } else {
+      var reason = result.skipReason || "unknown";
+      if (reason === "not in manifest") {
+        logger.info(`Skipped: ${filePath} (${reason})`);
+      } else {
+        logger.warn(`Skipped: ${filePath} (${reason})`);
+      }
+    }
+  });
   return groupAppFiles(appFileCtxs);
 };
 
@@ -465,12 +475,13 @@ const pushRec = async (
   builtRec: Record<string, string>,
   summary?: string,
   scope?: string,
+  updateSetConfig?: UpdateSetConfig,
 ) => {
   const recSummary = summary ?? `${table} > ${sysId}`;
   try {
-    // Check if an update set is configured for this scope
-    const updateSetConfig = getUpdateSetConfig();
-    const updateSet = scope ? updateSetConfig[scope] : undefined;
+    // Use the batch-level config passed from pushFiles() to avoid re-reading per record
+    const config = updateSetConfig || {};
+    const updateSet = scope ? config[scope] : undefined;
 
     const pushFn = updateSet
       ? () => {
@@ -486,16 +497,7 @@ const pushRec = async (
         }
       : () => client.updateRecord(table, sysId, builtRec);
 
-    const pushRes = await retryOnErr(
-      pushFn,
-      PUSH_RETRY_LIMIT,
-      PUSH_RETRY_WAIT,
-      (numTries: number) => {
-        logger.debug(
-          `Failed to push ${recSummary}! Retrying with ${numTries} left...`,
-        );
-      },
-    );
+    const pushRes = await retryOnHttpErr(pushFn, recSummary);
     return processPushResponse(pushRes, recSummary);
   } catch (e) {
     let message;
@@ -539,6 +541,7 @@ export const pushFiles = async (
       buildRes.builtRec,
       recSummary,
       scope,
+      updateSetConfig,
     );
     tick();
     return pushRes;

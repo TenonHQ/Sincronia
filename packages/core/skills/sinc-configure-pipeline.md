@@ -44,19 +44,19 @@ For each file type, construct a rule using these templates:
   match: /\.ts$/,
   plugins: [
     {
-      name: "@sincronia/typescript-plugin",
+      name: "@tenonhq/sincronia-typescript-plugin",
       options: { transpile: false }
     },
     {
-      name: "@sincronia/babel-plugin",
+      name: "@tenonhq/sincronia-babel-plugin",
       options: {
         presets: [
-          "@sincronia/servicenow",
+          "@tenonhq/sincronia-servicenow",
           "@babel/env",
           "@babel/typescript"
         ],
         plugins: [
-          "@sincronia/remove-modules",
+          "@tenonhq/sincronia-remove-modules",
           "@babel/proposal-class-properties",
           "@babel/proposal-object-rest-spread"
         ]
@@ -72,14 +72,14 @@ For each file type, construct a rule using these templates:
   match: /\.js$/,
   plugins: [
     {
-      name: "@sincronia/babel-plugin",
+      name: "@tenonhq/sincronia-babel-plugin",
       options: {
         presets: [
-          "@sincronia/servicenow",
+          "@tenonhq/sincronia-servicenow",
           "@babel/env"
         ],
         plugins: [
-          "@sincronia/remove-modules"
+          "@tenonhq/sincronia-remove-modules"
         ]
       }
     }
@@ -93,7 +93,7 @@ For each file type, construct a rule using these templates:
   match: /\.wp\.js$/,
   plugins: [
     {
-      name: "@sincronia/webpack-plugin",
+      name: "@tenonhq/sincronia-webpack-plugin",
       options: {
         configGenerator: (context) => ({
           mode: "production",
@@ -110,7 +110,7 @@ For each file type, construct a rule using these templates:
 {
   match: /\.scss$/,
   plugins: [
-    { name: "@sincronia/sass-plugin", options: {} }
+    { name: "@tenonhq/sincronia-sass-plugin", options: {} }
   ]
 }
 ```
@@ -135,24 +135,24 @@ Provide a single `npm i -D` command with all required packages.
 
 | Plugin | Purpose | npm Package |
 |--------|---------|-------------|
-| TypeScript | Type-check and/or transpile `.ts` | `@sincronia/typescript-plugin` |
-| Babel | Run Babel transforms | `@sincronia/babel-plugin` |
-| ESLint | Lint before sync (blocks on errors) | `@sincronia/eslint-plugin` |
-| Prettier | Format output code | `@sincronia/prettier-plugin` |
-| SASS | Compile SCSS to CSS | `@sincronia/sass-plugin` |
-| Webpack | Bundle frontend JS | `@sincronia/webpack-plugin` |
+| TypeScript | Type-check and/or transpile `.ts` | `@tenonhq/sincronia-typescript-plugin` |
+| Babel | Run Babel transforms | `@tenonhq/sincronia-babel-plugin` |
+| ESLint | Lint before sync (blocks on errors) | `@tenonhq/sincronia-eslint-plugin` |
+| Prettier | Format output code | `@tenonhq/sincronia-prettier-plugin` |
+| SASS | Compile SCSS to CSS | `@tenonhq/sincronia-sass-plugin` |
+| Webpack | Bundle frontend JS | `@tenonhq/sincronia-webpack-plugin` |
 
 ### Babel Sub-Packages (used inside babel-plugin options)
 
 | Package | Purpose | Config Key |
 |---------|---------|------------|
-| `@sincronia/babel-plugin-remove-modules` | Strip import/export for ServiceNow | `plugins: ["@sincronia/remove-modules"]` |
-| `@sincronia/babel-preset-servicenow` | Sanitize for Rhino engine | `presets: ["@sincronia/servicenow"]` |
+| `@tenonhq/sincronia-babel-plugin-remove-modules` | Strip import/export for ServiceNow | `plugins: ["@tenonhq/sincronia-remove-modules"]` |
+| `@tenonhq/sincronia-babel-preset-servicenow` | Sanitize for Rhino engine | `presets: ["@tenonhq/sincronia-servicenow"]` |
 
 ### Critical Warnings
 
 - **Never use `useBuiltIns`** with `@babel/env` -- ServiceNow's Rhino engine locks base class prototypes, so polyfills will fail.
-- **Always include `@sincronia/servicenow`** as the FIRST Babel preset listed (runs last) for server-side code -- it handles `__proto__` and reserved word issues.
-- **Always include `@sincronia/remove-modules`** as a Babel plugin for server-side code -- ServiceNow does not support ES modules.
+- **Always include `@tenonhq/sincronia-servicenow`** as the FIRST Babel preset listed (runs last) for server-side code -- it handles `__proto__` and reserved word issues.
+- **Always include `@tenonhq/sincronia-remove-modules`** as a Babel plugin for server-side code -- ServiceNow does not support ES modules.
 - If using TypeScript plugin for type-checking only (`transpile: false`), Babel must handle the actual transpilation.
 - Webpack rules MUST come before generic `.js` rules in the rules array.

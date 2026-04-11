@@ -168,7 +168,7 @@ export function generateConfigFile(params: {
     "\t\t\tmatch: /sys_script_include.*\\.ts$/,\n" +
     "\t\t\tplugins: [\n" +
     "\t\t\t\t{\n" +
-    "\t\t\t\t\tname: \"@sincronia/typescript-plugin\",\n" +
+    "\t\t\t\t\tname: \"@tenonhq/sincronia-typescript-plugin\",\n" +
     "\t\t\t\t\toptions: {\n" +
     "\t\t\t\t\t\ttranspile: true,\n" +
     "\t\t\t\t\t\ttypeCheck: true,\n" +
@@ -176,7 +176,7 @@ export function generateConfigFile(params: {
     "\t\t\t\t\t},\n" +
     "\t\t\t\t},\n" +
     "\t\t\t\t{\n" +
-    "\t\t\t\t\tname: \"@sincronia/eslint-plugin\",\n" +
+    "\t\t\t\t\tname: \"@tenonhq/sincronia-eslint-plugin\",\n" +
     "\t\t\t\t\toptions: {\n" +
     "\t\t\t\t\t\tconfigFile: \"./.eslintrc.js\",\n" +
     "\t\t\t\t\t\tfix: false,\n" +
@@ -184,13 +184,13 @@ export function generateConfigFile(params: {
     "\t\t\t\t\t},\n" +
     "\t\t\t\t},\n" +
     "\t\t\t\t{\n" +
-    "\t\t\t\t\tname: \"@sincronia/babel-plugin\",\n" +
+    "\t\t\t\t\tname: \"@tenonhq/sincronia-babel-plugin\",\n" +
     "\t\t\t\t\toptions: {\n" +
     "\t\t\t\t\t\tconfigFile: \"./.babelrc\",\n" +
     "\t\t\t\t\t},\n" +
     "\t\t\t\t},\n" +
     "\t\t\t\t{\n" +
-    "\t\t\t\t\tname: \"@sincronia/prettier-plugin\",\n" +
+    "\t\t\t\t\tname: \"@tenonhq/sincronia-prettier-plugin\",\n" +
     "\t\t\t\t\toptions: {\n" +
     "\t\t\t\t\t\tconfigFile: \"./.prettierrc.js\",\n" +
     "\t\t\t\t\t},\n" +

@@ -1,7 +1,7 @@
 import chokidar from "chokidar";
 import { logFilePush } from "./logMessages";
 import { debounce } from "lodash";
-import { getFileContextFromPath } from "./FileUtils";
+import { getFileContextFromPath, getFileContextWithSkipReason } from "./FileUtils";
 import { Sinc } from "@tenonhq/sincronia-types";
 import { groupAppFiles, pushFiles } from "./appUtils";
 import { writeRecentEdit } from "./recentEdits";
@@ -36,17 +36,26 @@ interface UpdateSetSelection {
 
 type UpdateSetConfig = Record<string, UpdateSetSelection>;
 
+interface WatcherOptions {
+  monitorIntervalMs: number; // 0 = disabled
+}
+
 class MultiScopeWatcherManager {
   private scopeWatchers: Map<string, ScopeWatcher> = new Map();
   private updateSetCheckInterval: NodeJS.Timeout | null = null;
   private scopeLock: Promise<void> = Promise.resolve();
+  private cachedScope: string | null = null;
+  private cachedUserSysId: string | null = null;
+  private pendingScopes: Map<string, number> = new Map(); // scope -> first change timestamp
+  private globalProcessQueue: ReturnType<typeof debounce> | null = null;
 
-  async startWatchingAllScopes() {
+  async startWatchingAllScopes(options?: WatcherOptions) {
+    var opts = options || { monitorIntervalMs: 120000 };
     try {
       // Load configuration
       await ConfigManager.loadConfigs();
       const config = ConfigManager.getConfig();
-      
+
       if (!config.scopes) {
         logger.error("No scopes defined in sinc.config.js");
         throw new Error("No scopes defined in configuration");
@@ -59,7 +68,7 @@ class MultiScopeWatcherManager {
       for (const scopeName of scopes) {
         const scopeConfig = config.scopes[scopeName];
         let sourceDirectory: string;
-        
+
         if (typeof scopeConfig === "object" && scopeConfig.sourceDirectory) {
           sourceDirectory = path.resolve(ConfigManager.getRootDir(), scopeConfig.sourceDirectory);
         } else {
@@ -70,8 +79,12 @@ class MultiScopeWatcherManager {
         this.startWatchingScope(scopeName, sourceDirectory);
       }
 
-      // Start periodic update set checking
-      this.startUpdateSetMonitoring();
+      // Start periodic update set checking (unless disabled)
+      if (opts.monitorIntervalMs > 0) {
+        this.startUpdateSetMonitoring(opts.monitorIntervalMs);
+      } else {
+        logger.info("Update set monitoring disabled (--noMonitoring)");
+      }
 
       logger.success("✅ Multi-scope watch started successfully!");
       logger.info("Watching for file changes across all scopes...");
@@ -102,21 +115,29 @@ class MultiScopeWatcherManager {
       sourceDirectory: sourceDirectory
     };
 
-    // Create a debounced processor for this scope
-    const processQueue = debounce(async () => {
-      await this.processScopeQueue(scopeWatcher);
-    }, DEBOUNCE_MS);
+    // Initialize global debounce once (shared across all scopes)
+    if (!this.globalProcessQueue) {
+      this.globalProcessQueue = debounce(async () => {
+        await this.processAllPendingScopes();
+      }, DEBOUNCE_MS);
+    }
 
     watcher.on("change", (filePath: string) => {
       logger.info(`[${scopeName}] File changed: ${path.relative(sourceDirectory, filePath)}`);
       scopeWatcher.pushQueue.push(filePath);
-      processQueue();
+      if (!this.pendingScopes.has(scopeName)) {
+        this.pendingScopes.set(scopeName, Date.now());
+      }
+      this.globalProcessQueue!();
     });
 
     watcher.on("add", (filePath: string) => {
       logger.info(`[${scopeName}] File added: ${path.relative(sourceDirectory, filePath)}`);
       scopeWatcher.pushQueue.push(filePath);
-      processQueue();
+      if (!this.pendingScopes.has(scopeName)) {
+        this.pendingScopes.set(scopeName, Date.now());
+      }
+      this.globalProcessQueue!();
     });
 
     watcher.on("error", (error: Error) => {
@@ -146,7 +167,7 @@ class MultiScopeWatcherManager {
         return JSON.parse(fs.readFileSync(configPath, "utf8"));
       }
     } catch (e) {
-      // Ignore parse errors
+      logger.warn(`[MultiScope] Failed to parse update set config at ${configPath}: ${e instanceof Error ? e.message : String(e)}`);
     }
     return {};
   }
@@ -155,10 +176,26 @@ class MultiScopeWatcherManager {
     var taskPath = path.resolve(process.cwd(), ".sinc-active-task.json");
     try {
       if (fs.existsSync(taskPath)) {
-        return JSON.parse(fs.readFileSync(taskPath, "utf8"));
+        var parsed = JSON.parse(fs.readFileSync(taskPath, "utf8"));
+        if (!parsed.taskId || typeof parsed.taskId !== "string" || parsed.taskId.trim() === "") {
+          logger.error("Active task file is missing a valid taskId. Ignoring active task.");
+          return null;
+        }
+        if (!parsed.updateSetName || typeof parsed.updateSetName !== "string" || parsed.updateSetName.trim() === "") {
+          logger.error("Active task file is missing a valid updateSetName. Ignoring active task.");
+          return null;
+        }
+        var stat = fs.statSync(taskPath);
+        var ageMs = Date.now() - stat.mtimeMs;
+        var ageDays = Math.floor(ageMs / (1000 * 60 * 60 * 24));
+        if (ageDays >= 7) {
+          var taskName = parsed.taskName || parsed.taskId;
+          logger.warn("Active task " + taskName + " was selected " + ageDays + " days ago. Run sinc task clear if you have moved on.");
+        }
+        return parsed;
       }
     } catch (e) {
-      // Ignore parse errors
+      logger.warn(`Failed to parse active task file: ${e instanceof Error ? e.message : String(e)}`);
     }
     return null;
   }
@@ -177,7 +214,7 @@ class MultiScopeWatcherManager {
     var activeTask = this.readActiveTask();
     if (!activeTask) {
       logger.warn(
-        `[${scopeName}] No update set configured and no active task to auto-create one. Pushing without update set routing.`
+        `[${scopeName}] No update set configured for scope ${scopeName}. Changes will go to Default. Use sinc createUpdateSet or activate a task in the dashboard.`
       );
       return;
     }
@@ -185,6 +222,11 @@ class MultiScopeWatcherManager {
     var taskId = activeTask.taskId;
     var updateSetName = activeTask.updateSetName;
     var description = activeTask.description || "";
+
+    if (!taskId || taskId.trim() === "") {
+      logger.error(`[${scopeName}] Active task has an empty taskId. Skipping update set lookup.`);
+      return;
+    }
 
     logger.info(`[${scopeName}] No update set found — auto-creating for task CU-${taskId}...`);
 
@@ -195,7 +237,12 @@ class MultiScopeWatcherManager {
       // Switch to the target scope and resolve its sys_id for update set creation
       await client.changeScope(scopeName);
       var scopeIdResult = await unwrapSNResponse(client.getScopeId(scopeName));
-      var scopeSysId = scopeIdResult.length > 0 ? scopeIdResult[0].sys_id : undefined;
+      var scopeSysId = scopeIdResult && scopeIdResult.length > 0 ? scopeIdResult[0].sys_id : undefined;
+
+      if (!scopeSysId) {
+        logger.error(`[${scopeName}] Scope "${scopeName}" not found on the instance. Cannot create update set for an invalid scope.`);
+        return;
+      }
 
       // Search for an existing update set matching this task in this scope
       var query =
@@ -229,17 +276,50 @@ class MultiScopeWatcherManager {
         logger.info(`[${scopeName}] Auto-created update set: ${updateSet.name}`);
       }
 
-      // Switch the active update set on the instance
+      // Switch the active update set on the instance and verify
       try {
         await client.changeUpdateSet({ sysId: updateSet.sys_id });
+
+        // Verify the switch was successful
+        var verifyResp = await client.getCurrentUpdateSet(scopeName);
+        var verifyResult = verifyResp.data;
+        if (verifyResult && (verifyResult as any).result) {
+          verifyResult = (verifyResult as any).result;
+        }
+        var currentSysId = verifyResult && (verifyResult as any).sysId ? (verifyResult as any).sysId : null;
+        if (currentSysId !== updateSet.sys_id) {
+          // Retry once
+          logger.warn(`[${scopeName}] Update set verification failed, retrying switch...`);
+          await client.changeUpdateSet({ sysId: updateSet.sys_id });
+          var retryResp = await client.getCurrentUpdateSet(scopeName);
+          var retryResult = retryResp.data;
+          if (retryResult && (retryResult as any).result) {
+            retryResult = (retryResult as any).result;
+          }
+          var retrySysId = retryResult && (retryResult as any).sysId ? (retryResult as any).sysId : null;
+          if (retrySysId !== updateSet.sys_id) {
+            var actualName = retryResult && (retryResult as any).name ? (retryResult as any).name : "unknown";
+            logger.error(`[${scopeName}] Update set ${updateSet.name} was created but could not be activated. Current update set is ${actualName}.`);
+            throw new Error(`Update set ${updateSet.name} could not be activated for scope ${scopeName}`);
+          }
+        }
+        logger.debug(`[${scopeName}] Update set switch verified: ${updateSet.name}`);
       } catch (changeErr) {
         logger.warn(`[${scopeName}] Could not auto-switch update set on instance`);
       }
 
-      // Persist the mapping
+      // Persist the mapping (serialized under scopeLock — safe from concurrent writes)
       config = this.getUpdateSetConfig(); // Re-read in case another scope wrote
       config[scopeName] = { sys_id: updateSet.sys_id, name: updateSet.name };
       this.saveUpdateSetConfig(config);
+
+      // Verify the write persisted correctly
+      var verifiedConfig = this.getUpdateSetConfig();
+      if (!verifiedConfig[scopeName] || verifiedConfig[scopeName].sys_id !== updateSet.sys_id) {
+        logger.error(`[${scopeName}] Update set config write verification failed. Expected mapping for ${scopeName} with sys_id ${updateSet.sys_id} but got: ${JSON.stringify(verifiedConfig[scopeName])}`);
+        throw new Error(`Update set config write verification failed for scope ${scopeName}`);
+      }
+      logger.debug(`[${scopeName}] Update set config verified: ${updateSet.name} (${updateSet.sys_id})`);
 
       // Also update the active task file
       if (activeTask) {
@@ -253,6 +333,22 @@ class MultiScopeWatcherManager {
     } catch (error) {
       logger.error(`[${scopeName}] Failed to auto-create update set: ${error}`);
       logger.warn(`[${scopeName}] Pushing without update set routing.`);
+    }
+  }
+
+  private async processAllPendingScopes() {
+    // Sort scopes by first file change timestamp (FIFO)
+    var sorted = Array.from(this.pendingScopes.entries()).sort(function (a, b) {
+      return a[1] - b[1];
+    });
+    this.pendingScopes.clear();
+
+    for (var i = 0; i < sorted.length; i++) {
+      var scopeName = sorted[i][0];
+      var scopeWatcher = this.scopeWatchers.get(scopeName);
+      if (scopeWatcher && scopeWatcher.pushQueue.length > 0) {
+        await this.processScopeQueue(scopeWatcher);
+      }
     }
   }
 
@@ -275,13 +371,29 @@ class MultiScopeWatcherManager {
         // Load the manifest for this specific scope
         await this.loadScopeManifest(scopeWatcher.scope, scopeWatcher.sourceDirectory);
 
-        // Process the files
-        const fileContexts = toProcess
-          .map(getFileContextFromPath)
-          .filter((ctx): ctx is Sinc.FileContext => !!ctx);
+        // Process the files — track skip reasons for summary
+        const fileContexts: Sinc.FileContext[] = [];
+        const skippedFiles: Array<{ filePath: string; reason: string }> = [];
+
+        toProcess.forEach(function (filePath) {
+          var result = getFileContextWithSkipReason(filePath);
+          if (result.context) {
+            // Scope validation: ensure the record's scope matches the watcher's scope
+            if (result.context.scope && result.context.scope !== scopeWatcher.scope) {
+              logger.error(`[${scopeWatcher.scope}] Scope mismatch: ${filePath} belongs to scope "${result.context.scope}" but was queued by watcher for "${scopeWatcher.scope}". Skipping to prevent cross-scope contamination.`);
+              skippedFiles.push({ filePath: filePath, reason: `scope mismatch (record: ${result.context.scope}, watcher: ${scopeWatcher.scope})` });
+            } else {
+              fileContexts.push(result.context);
+            }
+          } else {
+            var reason = result.skipReason || "unknown";
+            logger.warn(`[${scopeWatcher.scope}] Skipped: ${filePath} (${reason})`);
+            skippedFiles.push({ filePath: filePath, reason: reason });
+          }
+        });
 
         if (fileContexts.length === 0) {
-          logger.warn(`[${scopeWatcher.scope}] No valid file contexts found`);
+          logger.warn(`[${scopeWatcher.scope}] No valid file contexts found. ${skippedFiles.length} file(s) skipped.`);
           return;
         }
 
@@ -297,7 +409,15 @@ class MultiScopeWatcherManager {
           }
         });
 
-        logger.success(`[${scopeWatcher.scope}] Successfully pushed ${updateResults.length} file(s)`);
+        // Push summary
+        var pushedCount = updateResults.filter(function (r) { return r.success; }).length;
+        var totalCount = toProcess.length;
+        var summaryParts = [`Pushed ${pushedCount}/${totalCount} files to ${scopeWatcher.scope}.`];
+        if (skippedFiles.length > 0) {
+          var skippedList = skippedFiles.map(function (s) { return `${s.filePath} (${s.reason})`; }).join(", ");
+          summaryParts.push(`${skippedFiles.length} files skipped: [${skippedList}]`);
+        }
+        logger.info(`[${scopeWatcher.scope}] ${summaryParts.join(" ")}`);
       });
     } catch (error) {
       logger.error(`[${scopeWatcher.scope}] Error processing queue: ${error}`);
@@ -361,25 +481,34 @@ class MultiScopeWatcherManager {
   }
 
   private async switchToScope(scopeName: string) {
+    // Skip if already on the correct scope
+    if (this.cachedScope === scopeName) {
+      logger.debug(`Already on scope ${scopeName}, skipping switch`);
+      return;
+    }
+
     try {
       const { defaultClient, unwrapSNResponse } = await import("./snClient");
       const client = defaultClient();
-      
+
       // Get the scope ID
       const scopeResponse = await unwrapSNResponse(client.getScopeId(scopeName));
       if (!scopeResponse || !Array.isArray(scopeResponse) || scopeResponse.length === 0 || !scopeResponse[0].sys_id) {
         throw new Error(`Scope ${scopeName} not found`);
       }
 
-      // Get user sys_id
-      const userResponse = await unwrapSNResponse(client.getUserSysId());
-      if (!userResponse || !Array.isArray(userResponse) || userResponse.length === 0 || !userResponse[0].sys_id) {
-        throw new Error("Could not get user sys_id");
+      // Get user sys_id (cached for the session — never changes)
+      if (!this.cachedUserSysId) {
+        const userResponse = await unwrapSNResponse(client.getUserSysId());
+        if (!userResponse || !Array.isArray(userResponse) || userResponse.length === 0 || !userResponse[0].sys_id) {
+          throw new Error("Could not get user sys_id");
+        }
+        this.cachedUserSysId = userResponse[0].sys_id;
       }
 
       // Get current app preference
       const prefResponse = await unwrapSNResponse(
-        client.getCurrentAppUserPrefSysId(userResponse[0].sys_id)
+        client.getCurrentAppUserPrefSysId(this.cachedUserSysId)
       );
 
       if (prefResponse && Array.isArray(prefResponse) && prefResponse.length > 0 && prefResponse[0].sys_id) {
@@ -387,78 +516,59 @@ class MultiScopeWatcherManager {
         await client.updateCurrentAppUserPref(scopeResponse[0].sys_id, prefResponse[0].sys_id);
       } else {
         // Create new preference
-        await client.createCurrentAppUserPref(scopeResponse[0].sys_id, userResponse[0].sys_id);
+        await client.createCurrentAppUserPref(scopeResponse[0].sys_id, this.cachedUserSysId);
       }
 
+      this.cachedScope = scopeName;
       logger.debug(`Switched to scope: ${scopeName}`);
     } catch (error) {
+      // Invalidate cache on failure
+      this.cachedScope = null;
       logger.error(`Failed to switch to scope ${scopeName}: ${error}`);
       throw error;
     }
   }
 
-  private async startUpdateSetMonitoring() {
+  private async startUpdateSetMonitoring(intervalMs: number) {
     // Check update sets immediately on start
     await this.checkAllUpdateSets();
 
-    // Then check every 2 minutes
+    logger.info("Update set monitoring interval: " + Math.round(intervalMs / 1000) + "s");
     this.updateSetCheckInterval = setInterval(async () => {
       await this.checkAllUpdateSets();
-    }, 120000); // 2 minutes = 120000ms
+    }, intervalMs);
   }
 
   private async checkAllUpdateSets() {
+    // Budget: monitoring should not consume more than 5% of the 20 RPS rate limit
+    // per cycle. That gives us ~1 request/second budget. Each scope check uses
+    // ~6 API calls (switchToScope ~3, getUserSysId ~1, pref ~1, details ~1).
+    // To stay within budget we use the local update set config file instead of
+    // querying ServiceNow for each scope — 0 API calls when config is present.
     try {
-      const { defaultClient, unwrapSNResponse } = await import("./snClient");
-      const client = defaultClient();
       const config = ConfigManager.getConfig();
-      
       if (!config.scopes) return;
 
       const scopes = Object.keys(config.scopes);
+      var updateSetConfig = this.getUpdateSetConfig();
+
       logger.info("\n" + "=".repeat(60));
       logger.info("Update Set Status Check");
       logger.info("=".repeat(60));
 
-      for (const scopeName of scopes) {
-        try {
-          // Switch to scope to check its update set
-          await this.switchToScope(scopeName);
-
-          // Get user sys_id
-          const userResponse = await unwrapSNResponse(client.getUserSysId());
-          if (!userResponse || !Array.isArray(userResponse) || userResponse.length === 0 || !userResponse[0].sys_id) {
-            logger.warn(`[${scopeName}] Could not get user information`);
-            continue;
-          }
-
-          // Get current update set preference
-          const updateSetPref = await unwrapSNResponse(
-            client.getCurrentUpdateSetUserPref(userResponse[0].sys_id)
-          );
-
-          if (updateSetPref && Array.isArray(updateSetPref) && updateSetPref.length > 0 && (updateSetPref[0] as any).value) {
-            // Get update set details
-            const updateSetId = (updateSetPref[0] as any).value;
-            const updateSetDetails = await this.getUpdateSetDetails(updateSetId);
-            
-            if (updateSetDetails) {
-              const isDefault = updateSetDetails.name === "Default" || 
-                               updateSetDetails.name.toLowerCase().includes("default");
-              
-              if (isDefault) {
-                logger.warn(`⚠️  [${scopeName}] Currently in DEFAULT update set!`);
-              } else {
-                logger.info(`✅ [${scopeName}] Update Set: ${updateSetDetails.name}`);
-              }
-            } else {
-              logger.info(`[${scopeName}] Update Set ID: ${updateSetId}`);
-            }
+      for (var i = 0; i < scopes.length; i++) {
+        var scopeName = scopes[i];
+        var mapping = updateSetConfig[scopeName];
+        if (mapping && mapping.name) {
+          var isDefault = mapping.name === "Default" ||
+            mapping.name.toLowerCase().indexOf("default") !== -1;
+          if (isDefault) {
+            logger.warn(`⚠️  [${scopeName}] Currently in DEFAULT update set!`);
           } else {
-            logger.warn(`⚠️  [${scopeName}] No update set selected or in DEFAULT`);
+            logger.info(`✅ [${scopeName}] Update Set: ${mapping.name}`);
           }
-        } catch (error) {
-          logger.error(`[${scopeName}] Error checking update set: ${error}`);
+        } else {
+          logger.warn(`⚠️  [${scopeName}] No update set configured`);
         }
       }
 
@@ -496,7 +606,7 @@ class MultiScopeWatcherManager {
       }
       return null;
     } catch (error) {
-      logger.debug(`Could not get update set details: ${error}`);
+      logger.warn(`Could not get update set details: ${error}`);
       return null;
     }
   }
@@ -508,6 +618,13 @@ class MultiScopeWatcherManager {
       scopeWatcher.watcher.close();
     }
     this.scopeWatchers.clear();
+
+    // Cancel global debounce
+    if (this.globalProcessQueue) {
+      this.globalProcessQueue.cancel();
+      this.globalProcessQueue = null;
+    }
+    this.pendingScopes.clear();
 
     // Stop update set monitoring
     if (this.updateSetCheckInterval) {
@@ -521,8 +638,8 @@ class MultiScopeWatcherManager {
 
 export const multiScopeWatcher = new MultiScopeWatcherManager();
 
-export function startMultiScopeWatching() {
-  return multiScopeWatcher.startWatchingAllScopes();
+export function startMultiScopeWatching(options?: WatcherOptions) {
+  return multiScopeWatcher.startWatchingAllScopes(options);
 }
 
 export function stopMultiScopeWatching() {

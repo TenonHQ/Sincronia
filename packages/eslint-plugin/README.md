@@ -1,4 +1,4 @@
-# @sincronia/eslint-plugin
+# @tenonhq/sincronia-eslint-plugin
 
 ## Overview
 
@@ -7,7 +7,7 @@ This plugin allows you to run the [ESLint](https://eslint.org/) checker on files
 ## Installation
 
 ```bash
-npm i -D @sincronia/eslint-plugin
+npm i -D @tenonhq/sincronia-eslint-plugin
 ```
 
 ### Order of Configurations
@@ -26,7 +26,7 @@ module.exports={
   rules:{
     match:/\.ts$/,
     plugins:[
-      name:"@sincronia/eslint-plugin",
+      name:"@tenonhq/sincronia-eslint-plugin",
     ]
   }
 }; 
