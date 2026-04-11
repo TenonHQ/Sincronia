@@ -1,6 +1,6 @@
 {
   "name": "@tenonhq/sincronia-dashboard",
-  "version": "0.0.10",
+  "version": "0.0.12",
   "description": "Update Set Dashboard for Sincronia",
   "main": "server.js",
   "scripts": {

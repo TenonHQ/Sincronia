@@ -1,6 +1,6 @@
 {
   "name": "@tenonhq/sincronia-gmail",
-  "version": "0.0.5",
+  "version": "0.0.7",
   "description": "Gmail API client for Sincronia — email management, digest formatting, inbox operations",
   "main": "./dist/index.js",
   "scripts": {
