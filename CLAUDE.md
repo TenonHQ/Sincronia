@@ -64,6 +64,7 @@ npx sinc dashboard           # Launch the Update Set Dashboard web UI
 npx sinc dashboard --port 3457  # Dashboard on custom port
 npx sinc schema pull         # Pull ServiceNow table schemas
 npx sinc init-claude         # Install Claude Code skills
+npx sinc task clear          # Deselect active task (removes .sinc-active-task.json). Use when switching tasks or to avoid pushing to a stale task's update set
 npx sinc clickup             # ClickUp task management (subcommands: tasks, task, create, update, comment, teams, setup, spaces, lists)
 ```
 
