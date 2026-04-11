@@ -792,6 +792,10 @@ module.exports = {
       "sys_security_acl",
       "sysevent_script_action",
       "sys_ux_macroponent",
+      "sys_ux_event",
+      "sys_ux_client_script_include",
+      "sys_ux_screen",
+      "sys_script_fix",
     ],
 
     // Non-prefixed keys: table names with field type overrides
@@ -1173,9 +1177,9 @@ Refresh is an incremental download — only fetches files that are missing local
 
 ### 8.8 Synced Table Types
 
-Sincronia synchronizes 12 ServiceNow table types:
+Sincronia synchronizes 16 ServiceNow table types:
 
-`sys_script_include`, `sys_script`, `sys_ui_script`, `sys_ui_page`, `sys_ux_client_script`, `sys_processor`, `sys_ws_operation`, `sys_rest_message_fn`, `sys_ui_action`, `sys_security_acl`, `sysevent_script_action`, `sys_ux_macroponent`
+`sys_script_include`, `sys_script`, `sys_ui_script`, `sys_ui_page`, `sys_ux_client_script`, `sys_processor`, `sys_ws_operation`, `sys_rest_message_fn`, `sys_ui_action`, `sys_security_acl`, `sysevent_script_action`, `sys_ux_macroponent`, `sys_ux_event`, `sys_ux_client_script_include`, `sys_ux_screen`, `sys_script_fix`
 
 ---
 
@@ -1491,6 +1495,10 @@ module.exports = {
       "sys_security_acl",
       "sysevent_script_action",
       "sys_ux_macroponent",
+      "sys_ux_event",
+      "sys_ux_client_script_include",
+      "sys_ux_screen",
+      "sys_script_fix",
     ],
     sys_ux_macroponent: {
       composition: { type: "json" },
