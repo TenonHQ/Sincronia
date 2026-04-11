@@ -1,6 +1,8 @@
 const express = require("express");
 const path = require("path");
 const axios = require("axios");
+const { wrapper } = require("axios-cookiejar-support");
+const { CookieJar } = require("tough-cookie");
 const fs = require("fs");
 const RateLimit = require("express-rate-limit");
 
@@ -67,18 +69,27 @@ function waitForRateLimit() {
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
+// Session-persistent ServiceNow client — cookie jar ensures scope changes
+// (changeScope) persist across subsequent requests in the same session.
+var snCookieJar = new CookieJar();
+var snClient = wrapper(axios.create({
+  baseURL: BASE_URL,
+  auth: { username: SN_USER, password: SN_PASSWORD },
+  headers: {
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+  },
+  jar: snCookieJar,
+  withCredentials: true,
+}));
+
 // ServiceNow API helper — waits for rate limit clearance before firing
 async function snApi(method, endpoint, data) {
   await waitForRateLimit();
-  return axios({
-    method,
-    url: `${BASE_URL}/${endpoint}`,
-    auth: { username: SN_USER, password: SN_PASSWORD },
-    headers: {
-      "Content-Type": "application/json",
-      "Accept": "application/json",
-    },
-    data,
+  return snClient({
+    method: method,
+    url: endpoint,
+    data: data,
   });
 }
 
