@@ -110,4 +110,4 @@ Sincronia checks that your local manifest scope matches the active scope on the 
 - Always `npx sinc refresh` before starting work to catch new records.
 - Use `npx sinc status` to verify connectivity.
 - Check `sincronia-debug-*.log` for detailed error information.
-- Node.js v16.x is required -- check with `node -v`.
+- Node.js v20 LTS is required -- check with `node -v`.
