@@ -71,7 +71,7 @@ npx sinc clickup             # ClickUp task management (subcommands: tasks, task
 
 ### Core Components
 
-Sincronia is a Lerna monorepo with 13 packages (all published under `@tenonhq/sincronia-*`):
+Sincronia is a Lerna monorepo with 16 packages (all published under `@tenonhq/sincronia-*`):
 
 - **sincronia-core** — CLI + core synchronization logic (the `sinc` binary)
 - **sincronia-types** — TypeScript type definitions
@@ -84,6 +84,9 @@ Sincronia is a Lerna monorepo with 13 packages (all published under `@tenonhq/si
 - **sincronia-eslint-plugin** — ESLint code quality
 - **sincronia-prettier-plugin** — Prettier formatting
 - **sincronia-clickup** — ClickUp API client for task management
+- **sincronia-google-auth** — Shared Google OAuth2 authentication
+- **sincronia-google-calendar** — Google Calendar API client
+- **sincronia-gmail** — Gmail API client
 - **sincronia-dashboard** — Update Set Dashboard web UI
 - **sincronia-schema** — ServiceNow table schema fetcher
 
@@ -98,7 +101,7 @@ Sincronia is a Lerna monorepo with 13 packages (all published under `@tenonhq/si
 
 ```
 Sincronia/
-├── packages/                          # Lerna packages (13 packages)
+├── packages/                          # Lerna packages (16 packages)
 │   ├── core/                          # CLI + core sync logic
 │   ├── types/                         # TypeScript definitions
 │   ├── babel-plugin/                  # Babel plugin
@@ -110,6 +113,9 @@ Sincronia/
 │   ├── eslint-plugin/                 # ESLint plugin
 │   ├── prettier-plugin/               # Prettier plugin
 │   ├── clickup/                       # ClickUp API client
+│   ├── google-auth/                   # Shared Google OAuth2 authentication
+│   ├── google-calendar/               # Google Calendar API client
+│   ├── gmail/                         # Gmail API client
 │   ├── dashboard/                     # Update Set Dashboard UI
 │   └── schema/                        # ServiceNow schema fetcher
 ├── docs/                              # QA documentation
