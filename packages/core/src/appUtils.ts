@@ -119,9 +119,41 @@ const processTablesInManifest = async (
   forceWrite: boolean,
   sourcePath?: string,
   onRecordProcessed?: () => void,
+  scope?: string,
 ) => {
   var basePath = sourcePath || ConfigManager.getSourcePath();
-  const tableNames = Object.keys(tables);
+  var tableNames = Object.keys(tables);
+
+  // Defense-in-depth: filter out any table not in the resolved whitelist before
+  // writing to disk. Protects against upstream defects that let non-whitelisted
+  // tables through (e.g. server-side manifest fanout, stale manifest entries).
+  if (scope) {
+    try {
+      var resolved = ConfigManager.resolveConfigForScope(scope);
+      var allowed = resolved.tables;
+      if (allowed && allowed.length > 0) {
+        var skipped: string[] = [];
+        tableNames = tableNames.filter(function(t) {
+          if (allowed.indexOf(t) === -1) {
+            skipped.push(t);
+            return false;
+          }
+          return true;
+        });
+        if (skipped.length > 0) {
+          fileLogger.debug(
+            "processTablesInManifest: dropped " + skipped.length +
+            " non-whitelisted tables for scope '" + scope + "': " + skipped.join(", ")
+          );
+        }
+      }
+    } catch (e) {
+      // Config resolution can fail for legacy single-scope manifests; fall
+      // through and process whatever the manifest contains.
+      fileLogger.debug("processTablesInManifest: could not resolve whitelist for scope '" + scope + "'");
+    }
+  }
+
   await processBatched(tableNames, CONCURRENCY_TABLES, function(tableName) {
     return processRecsInManTable(
       path.join(basePath, tableName),
@@ -174,7 +206,7 @@ export const processManifest = async (
     total: recordCount,
   });
 
-  await processTablesInManifest(manifest.tables, forceWrite, sourcePath, progress.tick);
+  await processTablesInManifest(manifest.tables, forceWrite, sourcePath, progress.tick, manifest.scope);
 
   if (manifest.scope) {
     await fUtils.writeScopeManifest(manifest.scope, manifest);
@@ -191,18 +223,60 @@ export const syncManifest = async (scope?: string) => {
     const curManifest = await ConfigManager.getManifest();
     if (!curManifest) throw new Error("No manifest file loaded!");
 
+    const config = ConfigManager.getConfig();
+    const declaredScopes = (config.scopes && Object.keys(config.scopes)) || [];
+
     // If a specific scope is provided, sync only that scope
     if (scope) {
+      // Scope whitelist gate: refuse to refresh scopes not declared in sinc.config.js.
+      // Without this, stale entries in sinc.manifest.json leak undeclared scopes into
+      // the refresh loop (see RFC-0004 / sys_alias debris incident 2026-04-14).
+      if (declaredScopes.length > 0 && declaredScopes.indexOf(scope) === -1) {
+        logger.warn(
+          "Skipping scope '" + scope + "' — not declared in sinc.config.js `scopes`. " +
+          "Add it to config.scopes to sync, or remove its manifest file."
+        );
+        fileLogger.debug("syncManifest: skipped undeclared scope '" + scope + "'");
+        return;
+      }
+
       logger.info("Refreshing scope: " + scope + "...");
       const client = defaultClient();
-      const config = ConfigManager.getConfig();
 
-      // Resolve scope-specific source directory
+      // Resolve scope-specific source directory + table whitelist
       var scopeSourcePath = ConfigManager.getSourcePathForScope(scope);
+      var resolvedConfig = ConfigManager.resolveConfigForScope(scope);
+      var allowedTables = resolvedConfig.tables;
 
       const newManifest = normalizeManifestKeys(
         await unwrapSNResponse(client.getManifest(scope, config)),
       );
+
+      // Table whitelist gate: drop any table the server returned that is not in
+      // the resolved _tables whitelist for this scope. Mirrors the filter in
+      // commands.ts downloadCommand() and allScopesCommands.ts processScope().
+      if (allowedTables && allowedTables.length > 0) {
+        var manifestTableNames = Object.keys(newManifest.tables || {});
+        var filteredTables: any = {};
+        var skippedCount = 0;
+        for (var t = 0; t < manifestTableNames.length; t++) {
+          var tName = manifestTableNames[t];
+          if (allowedTables.indexOf(tName) !== -1) {
+            filteredTables[tName] = newManifest.tables[tName];
+          } else {
+            skippedCount++;
+          }
+        }
+        if (skippedCount > 0) {
+          fileLogger.debug(
+            "syncManifest: filtered " + skippedCount + " tables not in _tables whitelist for " +
+            scope + " (kept " + Object.keys(filteredTables).length + " of " + manifestTableNames.length + ")"
+          );
+        }
+        newManifest.tables = filteredTables;
+      } else {
+        logger.warn("No _tables whitelist defined — writing ALL tables for " + scope);
+      }
 
       const refreshTableCount = Object.keys(newManifest.tables).length;
       fileLogger.debug("Refreshed manifest for " + scope + ": " + refreshTableCount + " tables");
@@ -216,9 +290,15 @@ export const syncManifest = async (scope?: string) => {
         ConfigManager.updateManifest(curManifest as any);
       }
     } else {
-      // Sync all scopes if manifest has multiple scopes
-      if (ConfigManager.isMultiScopeManifest(curManifest)) {
-        // Multiple scopes detected
+      // Sync all scopes. Prefer the declared-scopes list (config.scopes) over
+      // the persisted manifest keys — the manifest may contain stale undeclared
+      // scopes that leaked in before the whitelist gate existed.
+      if (declaredScopes.length > 0) {
+        for (var d = 0; d < declaredScopes.length; d++) {
+          await syncManifest(declaredScopes[d]);
+        }
+      } else if (ConfigManager.isMultiScopeManifest(curManifest)) {
+        // No declared scopes — fall back to the persisted manifest's scopes.
         for (const scopeName of Object.keys(curManifest)) {
           await syncManifest(scopeName);
         }
@@ -411,7 +491,7 @@ export const processMissingFiles = async (
       total: recordCount,
     });
 
-    await processTablesInManifest(filesToProcess, false, sourcePath, progress.tick);
+    await processTablesInManifest(filesToProcess, false, sourcePath, progress.tick, newManifest.scope);
   } catch (e) {
     throw e;
   }
