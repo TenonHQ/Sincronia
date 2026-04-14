@@ -522,11 +522,59 @@ export const unwrapSNResponse = async <T>(
 
     return resp.data.result;
   } catch (e) {
-    let message;
-    if (e instanceof Error) message = e.message;
-    else message = String(e);
     const instance = process.env.SN_INSTANCE || "unknown";
-    logger.error("Error from " + instance + ": " + message);
+
+    if (axios.isAxiosError(e) && e.response) {
+      const status = e.response.status;
+      const statusText = e.response.statusText || "";
+      const method = ((e.config && e.config.method) || "").toUpperCase();
+      const url = (e.config && e.config.url) || "";
+      const data: any = e.response.data;
+
+      // Extract ServiceNow-shaped error message if present (`{error: {message, detail}, status}`)
+      let snMessage = "";
+      if (data && typeof data === "object") {
+        if (data.error && typeof data.error === "object" && data.error.message) {
+          snMessage = " — " + String(data.error.message);
+        } else if (typeof data.message === "string") {
+          snMessage = " — " + data.message;
+        }
+      }
+
+      // Pull scope out of /getManifest/:scope URLs for easy grepping
+      let scope: string | undefined;
+      const manifestMatch = url.match(/\/getManifest\/([^/?]+)/);
+      if (manifestMatch) scope = manifestMatch[1];
+
+      logger.error(
+        "Error from " + instance + ": HTTP " + status + " " +
+        method + " " + url + snMessage
+      );
+
+      fileLogger.debug("REST error detail", {
+        instance: instance,
+        scope: scope,
+        method: method,
+        url: url,
+        status: status,
+        statusText: statusText,
+        responseData: data,
+        responseHeaders: e.response.headers,
+      });
+    } else {
+      // Non-Axios error: preserve today's behaviour, add debug detail
+      let message;
+      if (e instanceof Error) message = e.message;
+      else message = String(e);
+      logger.error("Error from " + instance + ": " + message);
+      fileLogger.debug("Non-Axios error detail", {
+        instance: instance,
+        errorName: e instanceof Error ? e.name : undefined,
+        errorStack: e instanceof Error ? e.stack : undefined,
+        message: message,
+      });
+    }
+
     throw e;
   }
 };
