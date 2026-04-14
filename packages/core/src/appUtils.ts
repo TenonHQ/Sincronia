@@ -356,6 +356,12 @@ export const findMissingFiles = async (
   return missing;
 };
 
+// Chunk bulkDownload by table to stay under ServiceNow's 10 MB REST payload cap.
+// A single unchunked call 500s on large scopes (e.g. x_cadso_automate at ~29 MB).
+// Must mirror the chunk size used by allScopesCommands.ts (watch path) so behaviour
+// is consistent across `refresh` and `watch`.
+const BULK_DOWNLOAD_TABLE_CHUNK_SIZE = 5;
+
 export const processMissingFiles = async (
   newManifest: SN.AppManifest,
   sourcePath?: string,
@@ -370,9 +376,34 @@ export const processMissingFiles = async (
     const { tableOptions = {} } = ConfigManager.getConfig();
     const client = defaultClient();
 
-    const filesToProcess = await unwrapSNResponse(
-      client.getMissingFiles(missing, tableOptions),
-    );
+    // Chunk the bulkDownload request: ServiceNow rejects REST payloads > 10 MB,
+    // so send table batches and merge the results before processing.
+    const tableNames = Object.keys(missing);
+    const totalChunks = Math.ceil(tableNames.length / BULK_DOWNLOAD_TABLE_CHUNK_SIZE);
+    const filesToProcess: SN.TableMap = {} as SN.TableMap;
+
+    for (var i = 0; i < tableNames.length; i += BULK_DOWNLOAD_TABLE_CHUNK_SIZE) {
+      const chunkTableNames = tableNames.slice(i, i + BULK_DOWNLOAD_TABLE_CHUNK_SIZE);
+      const chunkMissing: SN.MissingFileTableMap = {} as SN.MissingFileTableMap;
+      for (var j = 0; j < chunkTableNames.length; j++) {
+        chunkMissing[chunkTableNames[j]] = missing[chunkTableNames[j]];
+      }
+
+      const batchNum = Math.floor(i / BULK_DOWNLOAD_TABLE_CHUNK_SIZE) + 1;
+      fileLogger.debug(
+        "Bulk download batch " + batchNum + "/" + totalChunks +
+        " (" + chunkTableNames.length + " tables): " + chunkTableNames.join(", "),
+      );
+
+      const chunkResult = await unwrapSNResponse(
+        client.getMissingFiles(chunkMissing, tableOptions),
+      );
+
+      // Chunks are partitioned by table key, so merging is a simple assign.
+      for (var tableName in chunkResult) {
+        (filesToProcess as any)[tableName] = (chunkResult as any)[tableName];
+      }
+    }
 
     var recordCount = countRecordsInTables(filesToProcess);
     var progress = createScopeProgress(logger.getLogLevel(), {
