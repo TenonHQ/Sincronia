@@ -64,6 +64,7 @@ var mockSNClient = {
   updateCurrentAppUserPref: jest.fn(),
   createCurrentAppUserPref: jest.fn(),
   getCurrentUpdateSetUserPref: jest.fn(),
+  changeScope: jest.fn().mockResolvedValue(undefined),
 };
 
 jest.mock("../snClient", function () {
@@ -275,9 +276,9 @@ describe("US-014: Global debounce for serialized scope processing", function () 
 
     // Track the order of scope switches
     var switchOrder: string[] = [];
-    mockSNClient.getScopeId.mockImplementation(function (scope: string) {
+    mockSNClient.changeScope.mockImplementation(function (scope: string) {
       switchOrder.push(scope);
-      return Promise.resolve([{ sys_id: "scope_sys_id_" + scope }]);
+      return Promise.resolve(undefined);
     });
 
     // Fire the global debounce

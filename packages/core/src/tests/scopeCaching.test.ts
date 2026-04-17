@@ -26,6 +26,10 @@ jest.mock("../snClient", function () {
         createCurrentAppUserPref: function (scopeSysId: string, userSysId: string) {
           apiCalls.push("createCurrentAppUserPref");
           return Promise.resolve({});
+        },
+        changeScope: function (scope: string) {
+          apiCalls.push("changeScope:" + scope);
+          return Promise.resolve(undefined);
         }
       };
     },
@@ -59,18 +63,15 @@ jest.mock("../config", function () {
 describe("Scope Caching (US-013)", function () {
   beforeEach(function () {
     apiCalls = [];
-    // Reset cached state
+    // Reset cached state. switchToScope now uses the Claude REST API
+    // changeScope endpoint; the cache avoids redundant session switches.
     (multiScopeWatcher as any).cachedScope = null;
-    (multiScopeWatcher as any).cachedUserSysId = null;
   });
 
-  it("should make API calls on first switch to a scope", async function () {
+  it("should call changeScope on first switch to a scope", async function () {
     await (multiScopeWatcher as any).switchToScope("x_cadso_core");
 
-    expect(apiCalls).toContain("getScopeId:x_cadso_core");
-    expect(apiCalls).toContain("getUserSysId");
-    expect(apiCalls).toContain("getCurrentAppUserPrefSysId");
-    expect(apiCalls).toContain("updateCurrentAppUserPref");
+    expect(apiCalls).toContain("changeScope:x_cadso_core");
   });
 
   it("should skip API calls when switching to the same scope (cache hit)", async function () {
@@ -82,26 +83,13 @@ describe("Scope Caching (US-013)", function () {
     expect(apiCalls).toEqual([]);
   });
 
-  it("should make API calls when switching to a different scope (cache miss)", async function () {
+  it("should call changeScope when switching to a different scope (cache miss)", async function () {
     await (multiScopeWatcher as any).switchToScope("x_cadso_core");
     apiCalls = [];
 
     await (multiScopeWatcher as any).switchToScope("x_cadso_automate");
 
-    expect(apiCalls).toContain("getScopeId:x_cadso_automate");
-    expect(apiCalls).toContain("getCurrentAppUserPrefSysId");
-    expect(apiCalls).toContain("updateCurrentAppUserPref");
-  });
-
-  it("should cache getUserSysId and call it at most once across multiple scope switches", async function () {
-    await (multiScopeWatcher as any).switchToScope("x_cadso_core");
-    apiCalls = [];
-
-    await (multiScopeWatcher as any).switchToScope("x_cadso_automate");
-
-    var userCalls = apiCalls.filter(function (c) { return c === "getUserSysId"; });
-    expect(userCalls).toHaveLength(0);
-    expect((multiScopeWatcher as any).cachedUserSysId).toBe("user_abc123");
+    expect(apiCalls).toContain("changeScope:x_cadso_automate");
   });
 
   it("should update cachedScope after a successful switch", async function () {
@@ -119,14 +107,14 @@ describe("Scope Caching (US-013)", function () {
     await (multiScopeWatcher as any).switchToScope("x_cadso_core");
     expect((multiScopeWatcher as any).cachedScope).toBe("x_cadso_core");
 
-    // Mock getScopeId to fail for a bad scope
+    // Swap in a client whose changeScope rejects
     var snClient = require("../snClient");
     var origDefault = snClient.defaultClient;
     snClient.defaultClient = function () {
       var client = origDefault();
-      client.getScopeId = function () {
-        apiCalls.push("getScopeId:bad_scope");
-        return Promise.resolve({ data: { result: [] } });
+      client.changeScope = function (scope: string) {
+        apiCalls.push("changeScope:" + scope + ":failed");
+        return Promise.reject(new Error("changeScope failed"));
       };
       return client;
     };

@@ -61,6 +61,7 @@ const mockSNClient = {
   updateCurrentAppUserPref: jest.fn(),
   createCurrentAppUserPref: jest.fn(),
   getCurrentUpdateSetUserPref: jest.fn(),
+  changeScope: jest.fn().mockResolvedValue(undefined),
 };
 
 jest.mock("../snClient", () => ({
@@ -498,41 +499,23 @@ describe("MultiScopeWatcherManager", () => {
   });
 
   describe("switchToScope", () => {
-    it("updates existing preference when one exists", async () => {
-      mockSNClient.getCurrentAppUserPrefSysId.mockResolvedValue([{ sys_id: "existing_pref" }]);
+    // switchToScope now uses the Claude REST API changeScope endpoint
+    // (gs.setCurrentApplicationId) to switch the active REST session scope.
+    // The previous user-preference approach only wrote a DB record and did
+    // not affect the session, causing updateRecord() to operate in the wrong scope.
 
-      // Access private method
+    it("invokes client.changeScope with the target scope", async () => {
       await (multiScopeWatcher as any).switchToScope("x_test_core");
 
-      expect(mockSNClient.getScopeId).toHaveBeenCalledWith("x_test_core");
-      expect(mockSNClient.getUserSysId).toHaveBeenCalled();
-      expect(mockSNClient.updateCurrentAppUserPref).toHaveBeenCalledWith("scope_sys_id", "existing_pref");
-      expect(mockSNClient.createCurrentAppUserPref).not.toHaveBeenCalled();
+      expect(mockSNClient.changeScope).toHaveBeenCalledWith("x_test_core");
     });
 
-    it("creates new preference when none exists", async () => {
-      mockSNClient.getCurrentAppUserPrefSysId.mockResolvedValue([]);
-
-      await (multiScopeWatcher as any).switchToScope("x_test_core");
-
-      expect(mockSNClient.createCurrentAppUserPref).toHaveBeenCalledWith("scope_sys_id", "user_sys_id");
-      expect(mockSNClient.updateCurrentAppUserPref).not.toHaveBeenCalled();
-    });
-
-    it("throws when scope not found", async () => {
-      mockSNClient.getScopeId.mockResolvedValue([]);
-
-      await expect(
-        (multiScopeWatcher as any).switchToScope("x_missing"),
-      ).rejects.toThrow("Scope x_missing not found");
-    });
-
-    it("throws when user sys_id cannot be retrieved", async () => {
-      mockSNClient.getUserSysId.mockResolvedValue([]);
+    it("propagates errors from changeScope and invalidates cached scope", async () => {
+      mockSNClient.changeScope.mockRejectedValueOnce(new Error("changeScope failed"));
 
       await expect(
         (multiScopeWatcher as any).switchToScope("x_test_core"),
-      ).rejects.toThrow("Could not get user sys_id");
+      ).rejects.toThrow("changeScope failed");
     });
   });
 
