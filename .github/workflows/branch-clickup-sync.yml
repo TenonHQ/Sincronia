@@ -13,5 +13,4 @@ jobs:
     with:
       branch_name: ${{ github.event.ref }}
       repo_full_name: ${{ github.repository }}
-    secrets:
-      CLICKUP_API_TOKEN: ${{ secrets.CLICKUP_API_TOKEN }}
+    secrets: inherit
