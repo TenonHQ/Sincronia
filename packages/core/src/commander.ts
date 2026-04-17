@@ -95,11 +95,21 @@ export async function initCommands() {
             type: "string",
             describe: "Refresh a single scope (default: all declared scopes)",
           },
+          benchmark: {
+            alias: "b",
+            type: "boolean",
+            default: false,
+            describe: "Log per-scope and aggregate HTTP latency, bytes, and file counts",
+          },
         });
         return cmdArgs;
       },
       async (args: TSFIXME) => {
-        await refreshCommand(args as Sinc.SharedCmdArgs & { force?: boolean; scope?: string });
+        await refreshCommand(args as Sinc.SharedCmdArgs & {
+          force?: boolean;
+          scope?: string;
+          benchmark?: boolean;
+        });
       },
     )
     .command(

@@ -20,14 +20,17 @@ export function setLogLevel(args: Sinc.SharedCmdArgs) {
 }
 
 export async function refreshCommand(
-  args: Sinc.SharedCmdArgs & { force?: boolean; scope?: string },
+  args: Sinc.SharedCmdArgs & { force?: boolean; scope?: string; benchmark?: boolean },
   log: boolean = true,
 ) {
   setLogLevel(args);
   try {
     if (!log) setLogLevel({ logLevel: "warn" });
-    fileLogger.debug("Syncing manifest from instance (force=" + !!args.force + ")");
-    await AppUtils.syncManifest(args.scope, { force: !!args.force });
+    fileLogger.debug("Syncing manifest from instance (force=" + !!args.force + ", benchmark=" + !!args.benchmark + ")");
+    await AppUtils.syncManifest(args.scope, {
+      force: !!args.force,
+      benchmark: !!args.benchmark,
+    });
     logger.success("Refresh complete!");
     setLogLevel(args);
   } catch (e) {
