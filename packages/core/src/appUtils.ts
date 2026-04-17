@@ -18,10 +18,12 @@ import {
   processPushResponse,
   retryOnErr,
   retryOnHttpErr,
+  setBenchmarkSink,
   SNClient,
   unwrapSNResponse,
   unwrapTableAPIFirstItem,
 } from "./snClient";
+import { BenchmarkCollector } from "./benchmark";
 import { logger } from "./Logger";
 import { aggregateErrorMessages, allSettled, processBatched, allSettledBatched } from "./genericUtils";
 
@@ -220,12 +222,27 @@ export const processManifest = async (
 
 export interface SyncManifestOptions {
   force?: boolean;
+  benchmark?: boolean;
+  // Internal: the active collector + request to close the per-scope segment.
+  // Passed scope-to-scope so the caller can wire a single collector across an
+  // all-scopes refresh. Not exposed on the CLI surface.
+  _benchmarkCollector?: import("./benchmark").BenchmarkCollector;
 }
 
 export const syncManifest = async (
   scope?: string,
   options: SyncManifestOptions = {},
 ) => {
+  // Top-level entry owns the collector lifecycle. Recursive calls (all-scopes
+  // → per-scope) inherit the collector via options._benchmarkCollector.
+  var isBenchmarkOwner = false;
+  var collector: BenchmarkCollector | undefined = options._benchmarkCollector;
+  if (options.benchmark && !collector) {
+    collector = new BenchmarkCollector();
+    setBenchmarkSink(collector);
+    isBenchmarkOwner = true;
+  }
+
   try {
     const curManifest = await ConfigManager.getManifest();
     if (!curManifest) throw new Error("No manifest file loaded!");
@@ -289,7 +306,11 @@ export const syncManifest = async (
       fileLogger.debug("Refreshed manifest for " + scope + ": " + refreshTableCount + " tables");
 
       await fUtils.writeScopeManifest(scope, newManifest);
-      await refreshAllFiles(newManifest, scopeSourcePath, { force: options.force });
+      if (collector) collector.startScope(scope);
+      await refreshAllFiles(newManifest, scopeSourcePath, {
+        force: options.force,
+        benchmarkCollector: collector,
+      });
 
       // Update the in-memory manifest for this scope
       if (ConfigManager.isMultiScopeManifest(curManifest)) {
@@ -300,18 +321,22 @@ export const syncManifest = async (
       // Sync all scopes. Prefer the declared-scopes list (config.scopes) over
       // the persisted manifest keys — the manifest may contain stale undeclared
       // scopes that leaked in before the whitelist gate existed.
+      var childOptions: SyncManifestOptions = {
+        force: options.force,
+        _benchmarkCollector: collector,
+      };
       if (declaredScopes.length > 0) {
         for (var d = 0; d < declaredScopes.length; d++) {
-          await syncManifest(declaredScopes[d], options);
+          await syncManifest(declaredScopes[d], childOptions);
         }
       } else if (ConfigManager.isMultiScopeManifest(curManifest)) {
         // No declared scopes — fall back to the persisted manifest's scopes.
         for (const scopeName of Object.keys(curManifest)) {
-          await syncManifest(scopeName, options);
+          await syncManifest(scopeName, childOptions);
         }
       } else if (curManifest.scope) {
         // Single scope manifest
-        await syncManifest(curManifest.scope, options);
+        await syncManifest(curManifest.scope, childOptions);
       }
     }
   } catch (e) {
@@ -319,6 +344,11 @@ export const syncManifest = async (
     if (e instanceof Error) message = e.message;
     else message = String(e);
     logger.error("Refresh failed: " + message);
+  } finally {
+    if (isBenchmarkOwner && collector) {
+      setBenchmarkSink(null);
+      logger.info(collector.formatSummary());
+    }
   }
 };
 
@@ -489,7 +519,7 @@ const buildAllFilesMap = (manifest: SN.AppManifest): SN.MissingFileTableMap => {
 export const refreshAllFiles = async (
   newManifest: SN.AppManifest,
   sourcePath?: string,
-  options: { force?: boolean } = {},
+  options: { force?: boolean; benchmarkCollector?: BenchmarkCollector } = {},
 ): Promise<void> => {
   try {
     const allFiles = buildAllFilesMap(newManifest);
@@ -609,7 +639,14 @@ export const refreshAllFiles = async (
     } else {
       logger.debug("No file changes detected from instance (" + unchangedCount + " checked)");
     }
+
+    if (options.benchmarkCollector) {
+      options.benchmarkCollector.endScope(writtenCount, unchangedCount);
+    }
   } catch (e) {
+    if (options.benchmarkCollector) {
+      options.benchmarkCollector.endScope(0, 0);
+    }
     throw e;
   }
 };

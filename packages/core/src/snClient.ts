@@ -6,6 +6,13 @@ import { CookieJar } from "tough-cookie";
 import { wait } from "./genericUtils";
 import { logger } from "./Logger";
 import { fileLogger } from "./FileLogger";
+import { BenchmarkCollector } from "./benchmark";
+
+// Benchmark sink. Null when --benchmark is off; zero overhead in that case.
+let _benchmarkSink: BenchmarkCollector | null = null;
+export function setBenchmarkSink(sink: BenchmarkCollector | null): void {
+  _benchmarkSink = sink;
+}
 
 // Local helper to strip _ directive keys before sending to ServiceNow API.
 // Defined here (not imported from config.ts) to avoid circular dependencies.
@@ -174,23 +181,70 @@ export const snClient = (
   password: string,
 ) => {
   const jar = new CookieJar();
-  const client = rateLimit(
-    wrapper(
-      axios.create({
-        withCredentials: true,
-        auth: {
-          username,
-          password,
-        },
-        headers: {
-          "Content-Type": "application/json",
-        },
-        baseURL,
-        jar,
-      } as any),
-    ),
-    { maxRPS: 20 },
+  const rawAxios = wrapper(
+    axios.create({
+      withCredentials: true,
+      auth: {
+        username,
+        password,
+      },
+      headers: {
+        "Content-Type": "application/json",
+      },
+      baseURL,
+      jar,
+    } as any),
   );
+
+  // Request interceptor: stamp startedAt so the response interceptor can
+  // compute durationMs. Only when a benchmark sink is attached — when it
+  // isn't, this is a single property assignment and does not change shape.
+  rawAxios.interceptors.request.use(function (cfg: any) {
+    if (_benchmarkSink) {
+      cfg._benchStartedAt = Date.now();
+    }
+    return cfg;
+  });
+
+  rawAxios.interceptors.response.use(
+    function (response: any) {
+      if (!_benchmarkSink) return response;
+      var startedAt = response.config && response.config._benchStartedAt;
+      if (!startedAt) return response;
+      var url = (response.config && response.config.url) || "";
+      var payload: any = response.data;
+      var responseBytes = 0;
+      try {
+        responseBytes = payload ? JSON.stringify(payload).length : 0;
+      } catch (e) {
+        responseBytes = 0;
+      }
+      var tableCount = 0;
+      var result: any = payload && payload.result;
+      if (result && typeof result === "object") {
+        if (url.indexOf("bulkDownload") !== -1) {
+          tableCount = Object.keys(result).length;
+        } else if (url.indexOf("getManifest") !== -1 && result.tables) {
+          tableCount = Object.keys(result.tables).length;
+        }
+      }
+      _benchmarkSink.recordHttp({
+        path: url,
+        tableCount: tableCount,
+        durationMs: Date.now() - startedAt,
+        statusCode: response.status,
+        responseBytes: responseBytes,
+      });
+      return response;
+    },
+    function (error: any) {
+      // Preserve original rejection; don't record errored requests (they skew
+      // latency tails without adding signal for the "scales the same" question).
+      return Promise.reject(error);
+    },
+  );
+
+  const client = rateLimit(rawAxios, { maxRPS: 20 });
 
   const getAppList = () => {
     const endpoint = "api/sinc/sincronia/getAppList";
