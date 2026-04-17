@@ -218,7 +218,14 @@ export const processManifest = async (
   }
 };
 
-export const syncManifest = async (scope?: string) => {
+export interface SyncManifestOptions {
+  force?: boolean;
+}
+
+export const syncManifest = async (
+  scope?: string,
+  options: SyncManifestOptions = {},
+) => {
   try {
     const curManifest = await ConfigManager.getManifest();
     if (!curManifest) throw new Error("No manifest file loaded!");
@@ -282,7 +289,7 @@ export const syncManifest = async (scope?: string) => {
       fileLogger.debug("Refreshed manifest for " + scope + ": " + refreshTableCount + " tables");
 
       await fUtils.writeScopeManifest(scope, newManifest);
-      await processMissingFiles(newManifest, scopeSourcePath);
+      await refreshAllFiles(newManifest, scopeSourcePath, { force: options.force });
 
       // Update the in-memory manifest for this scope
       if (ConfigManager.isMultiScopeManifest(curManifest)) {
@@ -295,16 +302,16 @@ export const syncManifest = async (scope?: string) => {
       // scopes that leaked in before the whitelist gate existed.
       if (declaredScopes.length > 0) {
         for (var d = 0; d < declaredScopes.length; d++) {
-          await syncManifest(declaredScopes[d]);
+          await syncManifest(declaredScopes[d], options);
         }
       } else if (ConfigManager.isMultiScopeManifest(curManifest)) {
         // No declared scopes — fall back to the persisted manifest's scopes.
         for (const scopeName of Object.keys(curManifest)) {
-          await syncManifest(scopeName);
+          await syncManifest(scopeName, options);
         }
       } else if (curManifest.scope) {
         // Single scope manifest
-        await syncManifest(curManifest.scope);
+        await syncManifest(curManifest.scope, options);
       }
     }
   } catch (e) {
@@ -441,6 +448,171 @@ export const findMissingFiles = async (
 // Must mirror the chunk size used by allScopesCommands.ts (watch path) so behaviour
 // is consistent across `refresh` and `watch`.
 const BULK_DOWNLOAD_TABLE_CHUNK_SIZE = 5;
+
+/**
+ * Builds a MissingFileTableMap containing EVERY file in the manifest — ignores
+ * local disk state. Used by `sinc refresh` to pull instance-side edits down.
+ */
+const buildAllFilesMap = (manifest: SN.AppManifest): SN.MissingFileTableMap => {
+  const result: SN.MissingFileTableMap = {} as SN.MissingFileTableMap;
+  const { tables } = manifest;
+  const tableNames = Object.keys(tables);
+  for (var t = 0; t < tableNames.length; t++) {
+    var tableName = tableNames[t];
+    var records = tables[tableName].records;
+    var recNames = Object.keys(records);
+    if (recNames.length === 0) continue;
+    var recMap: SN.MissingFileRecord = {} as SN.MissingFileRecord;
+    for (var r = 0; r < recNames.length; r++) {
+      var rec = records[recNames[r]];
+      if (!rec.files || rec.files.length === 0) continue;
+      // Strip any content that may be lingering on manifest file entries; the
+      // bulkDownload endpoint only needs name + type to resolve each field.
+      recMap[rec.sys_id] = rec.files.map(function(f) {
+        return { name: f.name, type: f.type };
+      });
+    }
+    if (Object.keys(recMap).length > 0) result[tableName] = recMap;
+  }
+  return result;
+};
+
+/**
+ * Refreshes local files against the ServiceNow instance for every file in the
+ * given manifest. Unlike `processMissingFiles` (which only writes files absent
+ * from disk), this walks ALL manifest files, fetches their current content from
+ * the instance, and writes when content differs.
+ *
+ * @param options.force — when true, always overwrite local files even if their
+ * content matches the instance. Use for deliberate "reset local to instance".
+ */
+export const refreshAllFiles = async (
+  newManifest: SN.AppManifest,
+  sourcePath?: string,
+  options: { force?: boolean } = {},
+): Promise<void> => {
+  try {
+    const allFiles = buildAllFilesMap(newManifest);
+    const tableNames = Object.keys(allFiles);
+    if (tableNames.length === 0) return;
+
+    fileLogger.debug(
+      "Refreshing file content for " + tableNames.length + " tables (force=" + !!options.force + ")",
+    );
+
+    const { tableOptions = {} } = ConfigManager.getConfig();
+    const client = defaultClient();
+    const totalChunks = Math.ceil(tableNames.length / BULK_DOWNLOAD_TABLE_CHUNK_SIZE);
+    const filesToProcess: SN.TableMap = {} as SN.TableMap;
+
+    for (var i = 0; i < tableNames.length; i += BULK_DOWNLOAD_TABLE_CHUNK_SIZE) {
+      const chunkTableNames = tableNames.slice(i, i + BULK_DOWNLOAD_TABLE_CHUNK_SIZE);
+      const chunkMissing: SN.MissingFileTableMap = {} as SN.MissingFileTableMap;
+      for (var j = 0; j < chunkTableNames.length; j++) {
+        chunkMissing[chunkTableNames[j]] = allFiles[chunkTableNames[j]];
+      }
+
+      const batchNum = Math.floor(i / BULK_DOWNLOAD_TABLE_CHUNK_SIZE) + 1;
+      fileLogger.debug(
+        "Refresh download batch " + batchNum + "/" + totalChunks +
+        " (" + chunkTableNames.length + " tables): " + chunkTableNames.join(", "),
+      );
+
+      const chunkResult = await unwrapSNResponse(
+        client.getMissingFiles(chunkMissing, tableOptions),
+      );
+
+      for (var tableName in chunkResult) {
+        (filesToProcess as any)[tableName] = (chunkResult as any)[tableName];
+      }
+    }
+
+    var basePath = sourcePath || ConfigManager.getSourcePath();
+    var recordCount = countRecordsInTables(filesToProcess);
+    var progress = createScopeProgress(logger.getLogLevel(), {
+      scope: newManifest.scope || "default",
+      total: recordCount,
+    });
+
+    var writtenCount = 0;
+    var unchangedCount = 0;
+    const forceWrite = !!options.force;
+    const forceWriter = fUtils.writeSNFileCurry(false);
+
+    const processedTableNames = Object.keys(filesToProcess);
+    await processBatched(processedTableNames, CONCURRENCY_TABLES, async function(tableName) {
+      var tablePath = path.join(basePath, tableName);
+      var recs = filesToProcess[tableName].records;
+      var recKeys = Object.keys(recs);
+      await Promise.all(recKeys.map(function(k) {
+        return fUtils.createDirRecursively(path.join(tablePath, recs[k].name));
+      }));
+
+      await processBatched(recKeys, CONCURRENCY_RECORDS, async function(recKey) {
+        var rec = recs[recKey];
+        var recPath = path.join(tablePath, rec.name);
+
+        var results = await allSettledBatched(rec.files, CONCURRENCY_FILES, async function(file) {
+          if (forceWrite) {
+            await forceWriter(file, recPath);
+            return true;
+          }
+          return fUtils.writeSNFileIfDifferent(file, recPath);
+        });
+
+        var anyChanged = false;
+        for (var f = 0; f < results.length; f++) {
+          var res = results[f];
+          if (res.status === "rejected") {
+            fileLogger.error("File write failed: " + (res as PromiseRejectedResult).reason);
+            continue;
+          }
+          if ((res as PromiseFulfilledResult<boolean>).value) {
+            anyChanged = true;
+            writtenCount++;
+          } else {
+            unchangedCount++;
+          }
+        }
+
+        // Only touch metaData when at least one file in the record actually
+        // changed. Avoids rewriting _lastUpdatedOn for records that were
+        // already in sync with the instance.
+        if (anyChanged || forceWrite) {
+          const metadataFile: SN.File = {
+            name: "metaData",
+            type: "json",
+            content: JSON.stringify({ _lastUpdatedOn: new Date().toISOString() }, null, 2),
+          };
+          await forceWriter(metadataFile, recPath);
+        }
+
+        // Strip content from manifest entries to keep memory bounded.
+        rec.files = rec.files.map(function(file) {
+          var copy = Object.assign({}, file);
+          delete copy.content;
+          return copy;
+        });
+
+        progress.tick();
+      });
+    });
+
+    fileLogger.debug(
+      "Refresh complete: " + writtenCount + " written, " + unchangedCount + " unchanged",
+    );
+    if (writtenCount > 0) {
+      logger.info(
+        "Refreshed " + writtenCount + " file(s) from instance" +
+        (unchangedCount > 0 ? " (" + unchangedCount + " already in sync)" : ""),
+      );
+    } else {
+      logger.debug("No file changes detected from instance (" + unchangedCount + " checked)");
+    }
+  } catch (e) {
+    throw e;
+  }
+};
 
 export const processMissingFiles = async (
   newManifest: SN.AppManifest,

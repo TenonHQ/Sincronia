@@ -80,9 +80,27 @@ export async function initCommands() {
     )
     .command(
       ["refresh", "r"],
-      "Refresh Manifest and download new files since last refresh",
-      sharedOptions,
-      refreshCommand,
+      "Pull latest manifest and file contents from the ServiceNow instance",
+      (cmdArgs) => {
+        cmdArgs.options({
+          ...sharedOptions,
+          force: {
+            alias: "f",
+            type: "boolean",
+            default: false,
+            describe: "Overwrite local files even when content matches the instance",
+          },
+          scope: {
+            alias: "s",
+            type: "string",
+            describe: "Refresh a single scope (default: all declared scopes)",
+          },
+        });
+        return cmdArgs;
+      },
+      async (args: TSFIXME) => {
+        await refreshCommand(args as Sinc.SharedCmdArgs & { force?: boolean; scope?: string });
+      },
     )
     .command(
       ["push [target]"],

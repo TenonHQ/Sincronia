@@ -76,6 +76,49 @@ export const writeSNFileCurry =
     }
   };
 
+/**
+ * Writes the SN file to disk only if the local content differs from `file.content`.
+ * Returns `true` if the file was written (missing or differed), `false` if skipped.
+ *
+ * Used by `sinc refresh` to pull ServiceNow-side edits without churning unchanged
+ * files (preserves mtime, avoids noisy watchers, keeps diff output clean).
+ */
+export const writeSNFileIfDifferent = async (
+  file: SN.File,
+  parentPath: string,
+): Promise<boolean> => {
+  let { name, type, content = "" } = file;
+  if (!content) content = "";
+
+  const fullPath = path.join(parentPath, `${name}.${type}`);
+
+  let localContent: string | null = null;
+  try {
+    localContent = await fsp.readFile(fullPath, "utf8");
+  } catch (e) {
+    localContent = null;
+  }
+
+  if (localContent === content) {
+    fileLogger.debug("Unchanged: " + fullPath);
+    return false;
+  }
+
+  if (localContent !== null) {
+    fileLogger.debug("Overwriting local content (differs from instance): " + fullPath);
+  } else {
+    fileLogger.debug("Writing (missing locally): " + fullPath);
+  }
+
+  try {
+    await fsp.writeFile(fullPath, content);
+    return true;
+  } catch (error) {
+    fileLogger.error("Failed to write " + fullPath + ":", error);
+    throw error;
+  }
+};
+
 export const createDirRecursively = async (path: string): Promise<void> => {
   await fsp.mkdir(path, { recursive: true });
 };
