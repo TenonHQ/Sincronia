@@ -230,7 +230,8 @@ class MultiScopeWatcherManager {
           var isDefault = curName === "Default" || curName.toLowerCase().indexOf("default") !== -1;
           if (isDefault) {
             logger.warn(
-              `[${scopeName}] No update set configured and current update set is Default. ` +
+              `[${scopeName}] No update set configured for scope ${scopeName}. ` +
+              `Changes will go to Default. ` +
               `Use sinc createUpdateSet or activate a task in the dashboard.`
             );
           } else {
@@ -243,13 +244,15 @@ class MultiScopeWatcherManager {
         } else {
           logger.warn(
             `[${scopeName}] No update set configured for scope ${scopeName}. ` +
+            `Changes will go to Default. ` +
             `Use sinc createUpdateSet or activate a task in the dashboard.`
           );
         }
       } catch (queryErr) {
         logger.warn(
-          `[${scopeName}] No update set configured and could not query current update set. ` +
-          `Changes will use direct Table API. Use sinc createUpdateSet or activate a task in the dashboard.`
+          `[${scopeName}] No update set configured for scope ${scopeName}. ` +
+          `Changes will go to Default (could not query current update set). ` +
+          `Use sinc createUpdateSet or activate a task in the dashboard.`
         );
       }
       return;
