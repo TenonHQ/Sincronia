@@ -87,7 +87,16 @@ class MultiScopeWatcherManager {
 
       logger.success("✅ Multi-scope watch started successfully!");
       logger.info("Watching for file changes across all scopes...");
-      logger.info("Press Ctrl+C to stop watching\n");
+      logger.info("Press Ctrl+C to stop watching");
+
+      var bootTask = this.readActiveTask();
+      if (bootTask) {
+        var taskLabel = bootTask.taskName || bootTask.taskId;
+        logger.info("📋 Active task: " + taskLabel + " (" + bootTask.taskId + ")  —  update set: " + bootTask.updateSetName);
+      } else {
+        logger.info("📋 No active task checked out. (Use `sinc clickup task <id>` to select one.)");
+      }
+      logger.info("");
 
     } catch (error) {
       logger.error("Failed to start multi-scope watch: " + error);

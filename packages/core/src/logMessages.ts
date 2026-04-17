@@ -4,6 +4,8 @@ import chalk from "chalk";
 
 export const log = console.log;
 
+const URL_THROTTLE_MS = 60 * 1000;
+const urlThrottle: Map<string, number> = new Map();
 
 function parseError(err: Error): string {
   return `${err.name}:
@@ -26,6 +28,16 @@ export function logFilePush(
       chalk.green("Pushed") + " " + context.tableName + "/" + context.name +
       " (" + context.targetField + ") to " + instance + " at " + timestamp,
     );
+    if (context.sys_id && process.env.SN_INSTANCE) {
+      const key = context.tableName + "/" + context.sys_id;
+      const now = Date.now();
+      const last = urlThrottle.get(key);
+      if (!last || now - last >= URL_THROTTLE_MS) {
+        urlThrottle.set(key, now);
+        const recordUrl = "https://" + process.env.SN_INSTANCE + "/nav_to.do?uri=" + context.tableName + ".do?sys_id=" + context.sys_id;
+        logger.info("  " + chalk.cyan("→ " + recordUrl));
+      }
+    }
   } else {
     logger.error(
       "Failed to push " + context.tableName + "/" + context.name +
