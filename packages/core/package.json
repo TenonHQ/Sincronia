@@ -38,7 +38,7 @@
     "typescript": "^5.2.2"
   },
   "dependencies": {
-    "@tenonhq/sincronia-clickup": "^0.0.1",
+    "@tenonhq/sincronia-clickup": "^0.0.6",
     "@tenonhq/sincronia-schema": "^0.0.1",
     "axios": "^1.5.1",
     "axios-cookiejar-support": "^4.0.7",
