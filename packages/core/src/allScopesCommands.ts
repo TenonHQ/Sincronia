@@ -78,7 +78,7 @@ async function processManifestForScope(
         const recordPath = path.join(tablePath, recordDirName);
 
         // Check if metadata file exists in the files from server
-        const hasMetadataFromServer = record.files?.some(
+        const hasMetadataFromServer = record.files && record.files.some(
           (f: any) => f.name === 'metaData' && f.type === 'json'
         );
 
@@ -272,7 +272,7 @@ export async function processScope(
       }
     }
 
-    const tableCount = Object.keys(manifest?.tables || {}).length;
+    const tableCount = Object.keys((manifest && manifest.tables) || {}).length;
     logger.info("Writing " + tableCount + " tables for " + scopeName + "...");
     await processManifestForScope(manifest, sourceDirectory, true);
 
@@ -374,10 +374,10 @@ export async function initScopesCommand(args: Sinc.SharedCmdArgs & { delay?: num
       } else {
         failCount++;
         const error =
-          result.status === "rejected" ? result.reason : result.value?.error;
+          result.status === "rejected" ? result.reason : (result.value && result.value.error);
         logger.error(
           `Failed to process ${scopeName}: ${
-            error?.message || "Unknown error"
+            (error && error.message) || "Unknown error"
           }`,
         );
       }

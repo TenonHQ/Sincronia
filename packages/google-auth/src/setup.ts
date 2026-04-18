@@ -19,14 +19,14 @@ import { URL } from "url";
 import fs from "fs";
 import path from "path";
 import { OAuth2Client } from "google-auth-library";
+import {
+  DEFAULT_REDIRECT_URI,
+  DEFAULT_REDIRECT_PORT,
+  DEFAULT_SCOPES,
+} from "./constants";
 
-var REDIRECT_URI = "http://localhost:3000/callback";
-var PORT = 3000;
-
-var DEFAULT_SCOPES = [
-  "https://www.googleapis.com/auth/gmail.modify",
-  "https://www.googleapis.com/auth/calendar",
-];
+var REDIRECT_URI = DEFAULT_REDIRECT_URI;
+var PORT = DEFAULT_REDIRECT_PORT;
 
 function loadEnv(): void {
   try {

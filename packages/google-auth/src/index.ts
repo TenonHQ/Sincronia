@@ -12,6 +12,13 @@ export {
   handleAuthError,
 } from "./client";
 
+// Shared constants
+export {
+  DEFAULT_REDIRECT_URI,
+  DEFAULT_REDIRECT_PORT,
+  DEFAULT_SCOPES,
+} from "./constants";
+
 // Type definitions
 export type {
   GoogleAuthConfig,

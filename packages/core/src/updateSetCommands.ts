@@ -290,7 +290,7 @@ export async function switchUpdateSetCommand(args: any): Promise<void> {
     // Extract the actual values from display_value objects
     const sysId = typeof targetUpdateSet.sys_id === 'object' && targetUpdateSet.sys_id !== null ? (targetUpdateSet as any).sys_id.value : targetUpdateSet.sys_id;
     const name = typeof targetUpdateSet.name === 'object' && targetUpdateSet.name !== null ? (targetUpdateSet as any).name.value : targetUpdateSet.name;
-    const applicationName = targetUpdateSet.application?.display_value || (typeof targetUpdateSet.application === 'object' && targetUpdateSet.application !== null ? (targetUpdateSet as any).application.value : targetUpdateSet.application);
+    const applicationName = (targetUpdateSet.application && targetUpdateSet.application.display_value) || (typeof targetUpdateSet.application === 'object' && targetUpdateSet.application !== null ? (targetUpdateSet as any).application.value : targetUpdateSet.application);
     const applicationScope = typeof targetUpdateSet.application === 'object' && targetUpdateSet.application !== null ? (targetUpdateSet as any).application.value : targetUpdateSet.application;
     
     // Switch to the selected update set
@@ -351,7 +351,7 @@ export async function listUpdateSetsCommand(args: any): Promise<void> {
       const name = typeof updateSet.name === 'object' && updateSet.name !== null ? updateSet.name.value : updateSet.name;
       const description = typeof updateSet.description === 'object' && updateSet.description !== null ? updateSet.description.value : updateSet.description;
       const createdBy = typeof updateSet.sys_created_by === 'object' && updateSet.sys_created_by !== null ? updateSet.sys_created_by.display_value || updateSet.sys_created_by.value : updateSet.sys_created_by;
-      const applicationName = updateSet.application?.display_value || (typeof updateSet.application === 'object' && updateSet.application !== null ? updateSet.application.value : updateSet.application);
+      const applicationName = (updateSet.application && updateSet.application.display_value) || (typeof updateSet.application === 'object' && updateSet.application !== null ? updateSet.application.value : updateSet.application);
       
       const isCurrent = sysId === currentUpdateSetId;
       const marker = isCurrent ? chalk.green("► ") : "  ";
@@ -689,7 +689,7 @@ async function selectUpdateSet(
   const choices = filteredSets.map(us => {
     const name = typeof us.name === 'object' && us.name !== null ? (us as any).name.value : us.name;
     const description = typeof us.description === 'object' && us.description !== null ? (us as any).description.value : us.description;
-    const applicationName = us.application?.display_value || (typeof us.application === 'object' && us.application !== null ? (us as any).application.value : us.application);
+    const applicationName = (us.application && us.application.display_value) || (typeof us.application === 'object' && us.application !== null ? (us as any).application.value : us.application);
     return {
       name: `${name}${applicationName ? ` (${applicationName})` : ""} - ${description || "No description"}`,
       value: us

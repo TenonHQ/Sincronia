@@ -1,7 +1,6 @@
 import { OAuth2Client } from "google-auth-library";
 import { GoogleAuthConfig, GoogleAuthResult } from "./types";
-
-var DEFAULT_REDIRECT_URI = "http://localhost:3000/callback";
+import { DEFAULT_REDIRECT_URI } from "./constants";
 
 /**
  * @description Creates an authenticated Google OAuth2 client from a refresh token.
