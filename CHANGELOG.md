@@ -2,6 +2,54 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.83] - 2026-04-17
+
+### Added
+
+- `--benchmark` flag for `sinc refresh` with workstudio measurements (#41)
+- Active task banner and record links in watch log (#37)
+
+### Fixed
+
+- `sinc refresh` now pulls instance-side edits down to local (#36)
+- `sinc refresh` gated on scope + table whitelists (#34)
+- `bulkDownload` chunked, REST 500 error detail surfaced (#33)
+- Dashboard session persistence and watcher scope switching (#31, #32)
+- Default update set fallback warning — RFC-0004 defect 3.3 (#40)
+- Restored 3 multi-scope test suites after mock gap and stale assertions (#39)
+
+### Changed
+
+- `@tenonhq/sincronia-core@0.0.83` / `@tenonhq/sincronia-clickup@0.0.7` published
+- Internal refs bumped to core 0.0.82, clickup 0.0.6 (#44)
+- RFC-0004 canonical pointer replaces duplicate copy (#38)
+
+## [0.0.82] - 2026-04-14
+
+### Added
+
+- Sincronia multi-scope QA/UAT audit — 20 remediations across scope safety, API resilience, and docs (#29)
+
+### Changed
+
+- Removed single-scope mode, enforced multi-scope (#21)
+- Multi-scope manifests handled across push, build, create, delete (#20)
+- Config phase, dashboard port flag, concurrency batching (#19)
+- Per-scope progress bars for sync operations (#18)
+
+### Fixed
+
+- `normalizeInstance` trailing slash alignment (#17)
+- Skip login prompts when `.env` credentials exist (#23)
+
+## [0.0.78] - 2026-04-10
+
+### Added
+
+- Multi-scope support for `sinc init` (#26)
+- Dashboard task filters and default update set names (#27)
+- Sincronia platform specification docs (#24)
+
 ## [0.0.73] - 2026-04-08
 
 ### Fixed
