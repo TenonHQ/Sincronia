@@ -46,6 +46,32 @@ const getUpdateSetConfig = (): UpdateSetConfig => {
   return {};
 };
 
+// Merge _lastUpdatedOn into the server-provided metadata content. Preserves all
+// record fields (sys_id, sys_scope, field value/display_value pairs, etc.) so
+// the local metaData.json is a full snapshot of the record, not just a stub.
+const stampMetadataContent = (file: SN.File): SN.File => {
+  if (file.name !== "metaData" || file.type !== "json") return file;
+  const stamp = new Date().toISOString();
+  if (!file.content) {
+    return { ...file, content: JSON.stringify({ _lastUpdatedOn: stamp }, null, 2) };
+  }
+  try {
+    const metadata = JSON.parse(file.content);
+    if (metadata.sys_updated_on && metadata.sys_updated_on.value) {
+      metadata._lastUpdatedOn = metadata.sys_updated_on.value;
+    } else {
+      metadata._lastUpdatedOn = stamp;
+    }
+    return { ...file, content: JSON.stringify(metadata, null, 2) };
+  } catch (e) {
+    // Content isn't JSON — leave as-is, it will be written verbatim.
+    return file;
+  }
+};
+
+const hasServerMetadata = (files: SN.File[]): boolean =>
+  files.some((f) => f.name === "metaData" && f.type === "json" && !!f.content);
+
 const processFilesInManRec = async (
   recPath: string,
   rec: SN.MetaRecord,
@@ -55,21 +81,21 @@ const processFilesInManRec = async (
 
   const fileWrite = fUtils.writeSNFileCurry(forceWrite);
 
-  // Create metadata file with current timestamp
-  const metadataFile: SN.File = {
-    name: "metaData",
-    type: "json",
-    content: JSON.stringify({
-      _lastUpdatedOn: new Date().toISOString()
-    }, null, 2)
-  };
-
-  await fileWrite(metadataFile, recPath);
+  // If the server did not provide a metadata file, fall back to a timestamp-only
+  // stub so the record directory always has a metaData.json.
+  if (!hasServerMetadata(rec.files)) {
+    const stubMetadata: SN.File = {
+      name: "metaData",
+      type: "json",
+      content: JSON.stringify({ _lastUpdatedOn: new Date().toISOString() }, null, 2),
+    };
+    await fileWrite(stubMetadata, recPath);
+  }
 
   const writeResults = await allSettledBatched(
     rec.files,
     CONCURRENCY_FILES,
-    function(file) { return fileWrite(file, recPath); },
+    function(file) { return fileWrite(stampMetadataContent(file), recPath); },
   );
   const writeFailures = writeResults.filter(
     (r) => r.status === "rejected",
@@ -86,7 +112,7 @@ const processFilesInManRec = async (
     delete fileCopy.content;
     return fileCopy;
   });
-  
+
 };
 
 const processRecsInManTable = async (
@@ -582,7 +608,22 @@ export const refreshAllFiles = async (
         var rec = recs[recKey];
         var recPath = path.join(tablePath, rec.name);
 
-        var results = await allSettledBatched(rec.files, CONCURRENCY_FILES, async function(file) {
+        // Split server-provided metadata off from the regular files so we can
+        // track whether any regular file actually changed — metaData shouldn't
+        // be the trigger for "this record changed" since we stamp it on every
+        // touch.
+        var metadataFiles: SN.File[] = [];
+        var regularFiles: SN.File[] = [];
+        for (var mi = 0; mi < rec.files.length; mi++) {
+          var rf = rec.files[mi];
+          if (rf.name === "metaData" && rf.type === "json") {
+            metadataFiles.push(rf);
+          } else {
+            regularFiles.push(rf);
+          }
+        }
+
+        var results = await allSettledBatched(regularFiles, CONCURRENCY_FILES, async function(file) {
           if (forceWrite) {
             await forceWriter(file, recPath);
             return true;
@@ -605,15 +646,22 @@ export const refreshAllFiles = async (
           }
         }
 
-        // Only touch metaData when at least one file in the record actually
-        // changed. Avoids rewriting _lastUpdatedOn for records that were
-        // already in sync with the instance.
+        // Only touch metaData when at least one regular file in the record
+        // actually changed. Avoids rewriting _lastUpdatedOn for records that
+        // were already in sync with the instance. Prefer the server-provided
+        // metadata (full field snapshot) over a stub; fall back to a stub only
+        // when the server didn't send metadata at all.
         if (anyChanged || forceWrite) {
-          const metadataFile: SN.File = {
-            name: "metaData",
-            type: "json",
-            content: JSON.stringify({ _lastUpdatedOn: new Date().toISOString() }, null, 2),
-          };
+          let metadataFile: SN.File;
+          if (metadataFiles.length > 0 && metadataFiles[0].content) {
+            metadataFile = stampMetadataContent(metadataFiles[0]);
+          } else {
+            metadataFile = {
+              name: "metaData",
+              type: "json",
+              content: JSON.stringify({ _lastUpdatedOn: new Date().toISOString() }, null, 2),
+            };
+          }
           await forceWriter(metadataFile, recPath);
         }
 
