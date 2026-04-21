@@ -4,6 +4,10 @@ import { Sinc } from "@tenonhq/sincronia-types";
 var configReadCount = 0;
 var mockConfigData: Record<string, { sys_id: string; name: string }> = {};
 
+// Per-scope read-only table sets, consumed by the mocked ../config module.
+// Mutate this object between tests to drive the push-gate behavior.
+var mockReadOnlyByScope: Record<string, Set<string>> = {};
+
 jest.mock("fs", function () {
   var actualFs = jest.requireActual("fs");
   return {
@@ -20,6 +24,17 @@ jest.mock("fs", function () {
         return JSON.stringify(mockConfigData);
       }
       return actualFs.readFileSync(p, encoding);
+    },
+  };
+});
+
+// Mock only the config surface pushFiles touches. getReadOnlyTablesForScope
+// is the one new call site; the rest of pushFiles reads no ConfigManager
+// exports, so a minimal mock keeps the test focused on the push gate.
+jest.mock("../config", function () {
+  return {
+    getReadOnlyTablesForScope: function (scope: string): Set<string> {
+      return mockReadOnlyByScope[scope] || new Set<string>();
     },
   };
 });
@@ -106,6 +121,7 @@ describe("pushFiles", function () {
   beforeEach(function () {
     configReadCount = 0;
     mockConfigData = {};
+    mockReadOnlyByScope = {};
     mockPushWithUpdateSet.mockClear();
     mockUpdateRecord.mockClear();
   });
@@ -187,5 +203,96 @@ describe("pushFiles", function () {
 
     expect(mockUpdateRecord).toHaveBeenCalledTimes(1);
     expect(mockPushWithUpdateSet).not.toHaveBeenCalled();
+  });
+
+  it("skips push for tables listed in _readOnlyTables for the scope", async function () {
+    mockConfigData = {};
+    mockReadOnlyByScope = {
+      x_cadso_core: new Set(["sys_hub_flow"]),
+    };
+
+    var { pushFiles } = require("../appUtils");
+
+    var records = [
+      makeRecord("sys_hub_flow", "flow1", "x_cadso_core"),
+    ];
+
+    var results = await pushFiles(records);
+
+    expect(mockPushWithUpdateSet).not.toHaveBeenCalled();
+    expect(mockUpdateRecord).not.toHaveBeenCalled();
+    expect(results).toHaveLength(1);
+    expect(results[0].success).toBe(true);
+    expect(results[0].message).toContain("skipped (read-only table)");
+  });
+
+  it("pushes normally when the scope has no read-only tables", async function () {
+    mockConfigData = {};
+    mockReadOnlyByScope = {};
+
+    var { pushFiles } = require("../appUtils");
+
+    var records = [
+      makeRecord("sys_script_include", "rec1", "x_cadso_core"),
+    ];
+
+    await pushFiles(records);
+
+    expect(mockUpdateRecord).toHaveBeenCalledTimes(1);
+    expect(mockPushWithUpdateSet).not.toHaveBeenCalled();
+  });
+
+  it("in a mixed batch, only non-read-only tables are pushed", async function () {
+    mockConfigData = {};
+    mockReadOnlyByScope = {
+      x_cadso_core: new Set(["sys_hub_flow"]),
+    };
+
+    var { pushFiles } = require("../appUtils");
+
+    var records = [
+      makeRecord("sys_hub_flow", "flow1", "x_cadso_core"),
+      makeRecord("sys_script_include", "rec1", "x_cadso_core"),
+      makeRecord("sys_hub_action_instance", "ai1", "x_cadso_core"),
+    ];
+
+    var results = await pushFiles(records);
+
+    // Only the read-only flow row is skipped; the other two hit updateRecord.
+    expect(mockUpdateRecord).toHaveBeenCalledTimes(2);
+    expect(mockPushWithUpdateSet).not.toHaveBeenCalled();
+    expect(results).toHaveLength(3);
+
+    var skipped = results.filter(function (r: Sinc.PushResult) {
+      return r.message.indexOf("skipped (read-only table)") !== -1;
+    });
+    expect(skipped).toHaveLength(1);
+  });
+
+  it("applies scope-specific read-only tables independently across scopes", async function () {
+    mockConfigData = {};
+    mockReadOnlyByScope = {
+      x_cadso_core: new Set(["sys_hub_flow"]),
+      x_cadso_work: new Set<string>(),
+    };
+
+    var { pushFiles } = require("../appUtils");
+
+    var records = [
+      makeRecord("sys_hub_flow", "flow1", "x_cadso_core"),
+      makeRecord("sys_hub_flow", "flow2", "x_cadso_work"),
+    ];
+
+    var results = await pushFiles(records);
+
+    // x_cadso_core's flow is blocked; x_cadso_work's flow pushes because it
+    // isn't in that scope's read-only set.
+    expect(mockUpdateRecord).toHaveBeenCalledTimes(1);
+    expect(results).toHaveLength(2);
+
+    var skipped = results.filter(function (r: Sinc.PushResult) {
+      return r.message.indexOf("skipped (read-only table)") !== -1;
+    });
+    expect(skipped).toHaveLength(1);
   });
 });

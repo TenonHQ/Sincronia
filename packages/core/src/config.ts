@@ -516,6 +516,9 @@ export interface ResolvedScopeConfig {
   fieldOverrides: Sinc.TablePropMap;
   apiIncludes: Sinc.TablePropMap;
   apiExcludes: Sinc.TablePropMap;
+  // Tables flagged pull-only via `_readOnlyTables` (global ∪ scope).
+  // Pulls still run; pushes are skipped for these tables.
+  readOnlyTables: string[];
 }
 
 export function isDirectiveKey(key: string): boolean {
@@ -533,8 +536,11 @@ export function stripDirectiveKeys(obj: Sinc.TablePropMap): Sinc.TablePropMap {
   return result;
 }
 
-export function resolveConfigForScope(scopeName: string): ResolvedScopeConfig {
-  var cfg = getConfig();
+export function resolveConfigForScope(
+  scopeName: string,
+  cfgOverride?: Sinc.ScopedConfig,
+): ResolvedScopeConfig {
+  var cfg = cfgOverride || getConfig();
   var cfgIncludes: any = cfg.includes || {};
   var cfgExcludes: any = cfg.excludes || {};
 
@@ -620,10 +626,41 @@ export function resolveConfigForScope(scopeName: string): ResolvedScopeConfig {
   // API excludes: strip _ keys
   var apiExcludes: Sinc.TablePropMap = stripDirectiveKeys(cfgExcludes);
 
+  // Read-only tables: union of global _readOnlyTables and scope-level override.
+  // A table flagged read-only is still pulled from the instance but pushes are
+  // skipped. Default when absent: empty (bidirectional for all tables).
+  var globalReadOnly: string[] = Array.isArray(cfgIncludes._readOnlyTables)
+    ? cfgIncludes._readOnlyTables
+    : [];
+  var scopeReadOnly: string[] = Array.isArray(scopeOverride._readOnlyTables)
+    ? scopeOverride._readOnlyTables
+    : [];
+  var readOnlySet: { [key: string]: boolean } = {};
+  for (i = 0; i < globalReadOnly.length; i++) {
+    readOnlySet[globalReadOnly[i]] = true;
+  }
+  for (i = 0; i < scopeReadOnly.length; i++) {
+    readOnlySet[scopeReadOnly[i]] = true;
+  }
+  var resolvedReadOnly = Object.keys(readOnlySet);
+
   return {
     tables: resolvedTables,
     fieldOverrides: fieldOverrides,
     apiIncludes: apiIncludes,
     apiExcludes: apiExcludes,
+    readOnlyTables: resolvedReadOnly,
   };
+}
+
+// Convenience wrapper for push-side lookups — returns a Set for O(1) membership.
+// Fails safe (empty set = all tables writable) when config isn't available
+// rather than blocking a push over a lookup error.
+export function getReadOnlyTablesForScope(scopeName: string): Set<string> {
+  try {
+    var resolved = resolveConfigForScope(scopeName);
+    return new Set(resolved.readOnlyTables || []);
+  } catch (e) {
+    return new Set();
+  }
 }

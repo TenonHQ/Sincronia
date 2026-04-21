@@ -889,12 +889,38 @@ export const pushFiles = async (
     logger.info(`Update set routing active: ${activeScopes}`);
   }
 
+  // Pre-resolve read-only table sets for every scope present in this batch.
+  // Cheaper than re-resolving per record. Tables flagged in _readOnlyTables
+  // are pulled normally but pushes are skipped.
+  const readOnlyByScope: Record<string, Set<string>> = {};
+  for (const rec of recs) {
+    const fieldNames = Object.keys(rec.fields);
+    if (fieldNames.length === 0) continue;
+    const scope = rec.fields[fieldNames[0]].scope;
+    if (scope && !readOnlyByScope[scope]) {
+      readOnlyByScope[scope] = ConfigManager.getReadOnlyTablesForScope(scope);
+    }
+  }
+  const announcedSkipTables: Record<string, boolean> = {};
+
   const tick = getProgTick(logger.getLogLevel(), recs.length * 2) || (() => {});
   const results = await allSettledBatched(recs, CONCURRENCY_PUSH, async function(rec) {
     const fieldNames = Object.keys(rec.fields);
     const firstField = rec.fields[fieldNames[0]];
     const recSummary = summarizeRecord(rec.table, firstField.name);
     const scope = firstField.scope;
+
+    const readOnlySet = scope ? readOnlyByScope[scope] : undefined;
+    if (readOnlySet && readOnlySet.has(rec.table)) {
+      tick();
+      tick();
+      const skipKey = `${scope}:${rec.table}`;
+      if (!announcedSkipTables[skipKey]) {
+        announcedSkipTables[skipKey] = true;
+        logger.info(`Read-only table ${rec.table} in scope ${scope}: push skipped`);
+      }
+      return { success: true, message: `${recSummary} : skipped (read-only table)` };
+    }
 
     const buildRes = await buildRec(rec);
     tick();
