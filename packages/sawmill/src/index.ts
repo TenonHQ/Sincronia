@@ -7,5 +7,10 @@
 
 export { createSawmillApi } from "./client";
 export type { SawmillApi } from "./client";
-export type { SawmillApiConfig } from "./types";
+export type {
+  SawmillApiConfig,
+  PromoteRequest,
+  PromoteResponse,
+  PreviewError,
+} from "./types";
 export * from "./formatter";
