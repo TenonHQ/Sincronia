@@ -1,0 +1,186 @@
+/**
+ * ServiceNow REST client for @tenonhq/sincronia-servicenow.
+ *
+ * Provides two entry points:
+ *   - `table.*`       — read-only GETs against the native Table API
+ *   - `claude.*`      — writes via the Sincronia "Claude" Scripted REST API
+ *                       (/api/cadso/claude/*), which handles update-set + scope
+ *                       switching atomically so every write lands in the right
+ *                       update set without touching sys_user_preference.
+ *
+ * Env fallbacks mirror scripts/sinch-dashboard-fetch/sn-client.js so dev setups
+ * that already have SN_INSTANCE/SN_USER/SN_PASSWORD work without reconfiguration.
+ */
+
+import axios, { AxiosInstance, AxiosRequestConfig } from "axios";
+import type { ServiceNowClientConfig } from "./types";
+
+function resolveInstance(cfg: ServiceNowClientConfig): string {
+  var raw = cfg.instance || process.env.SN_INSTANCE || "";
+  if (!raw) {
+    throw new Error(
+      "ServiceNow instance not configured. Set SN_INSTANCE or pass { instance }."
+    );
+  }
+  return raw.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+}
+
+function resolveAuth(cfg: ServiceNowClientConfig): { user: string; password: string } {
+  var user = cfg.user || process.env.SN_USER || "";
+  var password = cfg.password || process.env.SN_PASSWORD || "";
+  if (!user || !password) {
+    throw new Error("ServiceNow credentials missing — set SN_USER and SN_PASSWORD.");
+  }
+  return { user: user, password: password };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(function (resolve) {
+    setTimeout(resolve, ms);
+  });
+}
+
+export interface ServiceNowClient {
+  table: {
+    /** GET /api/now/table/<t>?sysparm_query=...&sysparm_limit=N — returns result array. */
+    query: <T = Record<string, any>>(table: string, query: string, limit?: number) => Promise<Array<T>>;
+  };
+  claude: {
+    /** POST /api/cadso/claude/createRecord. */
+    createRecord: (params: {
+      table: string;
+      fields: Record<string, any>;
+      scope?: string;
+      update_set_sys_id?: string;
+      sys_id?: string;
+    }) => Promise<{ sys_id: string; [k: string]: any }>;
+    /** POST /api/cadso/claude/pushWithUpdateSet. */
+    pushWithUpdateSet: (params: {
+      update_set_sys_id: string;
+      table: string;
+      record_sys_id: string;
+      fields: Record<string, any>;
+    }) => Promise<{ sys_id: string; [k: string]: any }>;
+    /** GET /api/cadso/claude/currentUpdateSet?scope=... */
+    currentUpdateSet: (scope?: string) => Promise<{ sys_id: string; name: string }>;
+  };
+}
+
+export function createClient(config: ServiceNowClientConfig = {}): ServiceNowClient {
+  var host = resolveInstance(config);
+  var creds = resolveAuth(config);
+  var intervalMs = config.requestIntervalMs != null
+    ? config.requestIntervalMs
+    : Number(process.env.SN_REQUEST_INTERVAL_MS) || 20;
+  var max429 = config.maxRetries429 != null
+    ? config.maxRetries429
+    : Number(process.env.SN_MAX_RETRIES_429) || 5;
+  var max5xx = config.maxRetries5xx != null
+    ? config.maxRetries5xx
+    : Number(process.env.SN_MAX_RETRIES_5XX) || 3;
+
+  var http: AxiosInstance = axios.create({
+    baseURL: "https://" + host,
+    auth: { username: creds.user, password: creds.password },
+    headers: { accept: "application/json", "content-type": "application/json" },
+    validateStatus: function () { return true; }
+  });
+
+  var lastAt = 0;
+
+  async function request<T = any>(cfg: AxiosRequestConfig, ctx: string): Promise<T> {
+    var attempt429 = 0;
+    var attempt5xx = 0;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      var elapsed = Date.now() - lastAt;
+      if (elapsed < intervalMs) {
+        await sleep(intervalMs - elapsed);
+      }
+      lastAt = Date.now();
+
+      var res;
+      try {
+        res = await http.request(cfg);
+      } catch (netErr: any) {
+        if (attempt5xx >= max5xx) {
+          throw new Error("SN network error on " + ctx + ": " + (netErr && netErr.message));
+        }
+        attempt5xx += 1;
+        await sleep(Math.pow(2, attempt5xx) * 1000);
+        continue;
+      }
+
+      if (res.status === 401 || res.status === 403) {
+        throw new Error("SN auth error " + res.status + " on " + ctx + " — check SN_USER/SN_PASSWORD and ACLs.");
+      }
+      if (res.status === 404) {
+        throw new Error("SN 404 on " + ctx + " — endpoint or record not found.");
+      }
+      if (res.status === 429) {
+        if (attempt429 >= max429) {
+          throw new Error("SN 429 rate limit — retries exhausted on " + ctx);
+        }
+        attempt429 += 1;
+        await sleep(Math.min(60000, Math.pow(2, attempt429) * 1000));
+        continue;
+      }
+      if (res.status >= 500) {
+        if (attempt5xx >= max5xx) {
+          throw new Error("SN " + res.status + " on " + ctx + " — retries exhausted.");
+        }
+        attempt5xx += 1;
+        await sleep(Math.pow(2, attempt5xx) * 1000);
+        continue;
+      }
+      if (res.status < 200 || res.status >= 300) {
+        var body = typeof res.data === "string" ? res.data : JSON.stringify(res.data);
+        throw new Error("SN " + res.status + " on " + ctx + ": " + body.substring(0, 400));
+      }
+      return res.data as T;
+    }
+  }
+
+  return {
+    table: {
+      query: async function <T = Record<string, any>>(table: string, query: string, limit: number = 100): Promise<Array<T>> {
+        var data = await request<{ result: Array<T> }>(
+          {
+            method: "GET",
+            url: "/api/now/table/" + encodeURIComponent(table),
+            params: { sysparm_query: query, sysparm_limit: limit, sysparm_display_value: false }
+          },
+          "table.query(" + table + ")"
+        );
+        return data.result || [];
+      }
+    },
+    claude: {
+      createRecord: async function (params) {
+        var data = await request<{ result: any }>(
+          { method: "POST", url: "/api/cadso/claude/createRecord", data: params },
+          "claude.createRecord(" + params.table + ")"
+        );
+        return data.result || data;
+      },
+      pushWithUpdateSet: async function (params) {
+        var data = await request<{ result: any }>(
+          { method: "POST", url: "/api/cadso/claude/pushWithUpdateSet", data: params },
+          "claude.pushWithUpdateSet(" + params.table + ")"
+        );
+        return data.result || data;
+      },
+      currentUpdateSet: async function (scope) {
+        var data = await request<{ result: any }>(
+          {
+            method: "GET",
+            url: "/api/cadso/claude/currentUpdateSet",
+            params: scope ? { scope: scope } : {}
+          },
+          "claude.currentUpdateSet"
+        );
+        return data.result || data;
+      }
+    }
+  };
+}
