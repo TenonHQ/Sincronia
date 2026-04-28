@@ -15,21 +15,51 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from "axios";
 import type { ServiceNowClientConfig } from "./types";
 
+/**
+ * Env precedence for instance/auth: explicit cfg > SN_* > SN_DEV_* > SN_PROD_*.
+ * SN_DEV_* / SN_PROD_* fallbacks match the names documented in Craftsman/CLAUDE.local.md
+ * so existing developer setups work without re-exporting variables. SN_DEV_INSTANCE
+ * may be a bare instance name (e.g. "TenonWorkStudio") — `.service-now.com` is
+ * appended when it isn't already part of the host.
+ */
+function normalizeHost(raw: string): string {
+  var host = raw.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+  if (host && host.indexOf(".") === -1) {
+    host = host.toLowerCase() + ".service-now.com";
+  }
+  return host;
+}
+
 function resolveInstance(cfg: ServiceNowClientConfig): string {
-  var raw = cfg.instance || process.env.SN_INSTANCE || "";
+  var raw = cfg.instance
+    || process.env.SN_INSTANCE
+    || process.env.SN_DEV_INSTANCE
+    || process.env.SN_PROD_INSTANCE
+    || "";
   if (!raw) {
     throw new Error(
-      "ServiceNow instance not configured. Set SN_INSTANCE or pass { instance }."
+      "ServiceNow instance not configured. Set SN_INSTANCE (preferred) or SN_DEV_INSTANCE / SN_PROD_INSTANCE, or pass { instance }."
     );
   }
-  return raw.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+  return normalizeHost(raw);
 }
 
 function resolveAuth(cfg: ServiceNowClientConfig): { user: string; password: string } {
-  var user = cfg.user || process.env.SN_USER || "";
-  var password = cfg.password || process.env.SN_PASSWORD || "";
+  var user = cfg.user
+    || process.env.SN_USER
+    || process.env.SN_DEV_USERNAME
+    || process.env.SN_PROD_USERNAME
+    || "";
+  var password = cfg.password
+    || process.env.SN_PASSWORD
+    || process.env.SN_DEV_PASSWORD
+    || process.env.SN_PROD_PASSWORD
+    || "";
   if (!user || !password) {
-    throw new Error("ServiceNow credentials missing — set SN_USER and SN_PASSWORD.");
+    throw new Error(
+      "ServiceNow credentials missing — set SN_USER/SN_PASSWORD (preferred) " +
+      "or SN_DEV_USERNAME/SN_DEV_PASSWORD (or SN_PROD_*)."
+    );
   }
   return { user: user, password: password };
 }

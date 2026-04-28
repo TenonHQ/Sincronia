@@ -45,7 +45,18 @@ Requires Node 20 LTS.
 
 ## Configure
 
-Reuses the existing ServiceNow env vars:
+Reads ServiceNow credentials from env vars in this order of precedence:
+
+| Field    | Preferred       | Dev fallback        | Prod fallback        |
+|----------|-----------------|---------------------|----------------------|
+| Host     | `SN_INSTANCE`   | `SN_DEV_INSTANCE`   | `SN_PROD_INSTANCE`   |
+| User     | `SN_USER`       | `SN_DEV_USERNAME`   | `SN_PROD_USERNAME`   |
+| Password | `SN_PASSWORD`   | `SN_DEV_PASSWORD`   | `SN_PROD_PASSWORD`   |
+
+The dev/prod fallbacks match the names already documented in
+`Craftsman/CLAUDE.local.md`, so existing developer setups work out of the box.
+Bare instance names (e.g. `TenonWorkStudio`) get `.service-now.com` appended
+automatically.
 
 ```
 SN_INSTANCE=tenonworkstudio.service-now.com
