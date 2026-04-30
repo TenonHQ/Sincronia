@@ -1,6 +1,6 @@
 {
   "name": "@tenonhq/sincronia-servicenow",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "ServiceNow platform helpers for Sincronia — dictionary, choices, update-set-aware writes via the Claude Scripted REST API",
   "main": "./dist/index.js",
   "bin": {
