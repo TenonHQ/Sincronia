@@ -70,10 +70,37 @@ function sleep(ms: number): Promise<void> {
   });
 }
 
+export interface TableSchemaField {
+  name: string;
+  type: string;
+  mandatory: boolean;
+  reference_table: string | null;
+}
+
+export interface TableSchema {
+  fields: Array<TableSchemaField>;
+  primary_key: string;
+}
+
 export interface ServiceNowClient {
   table: {
     /** GET /api/now/table/<t>?sysparm_query=...&sysparm_limit=N — returns result array. */
     query: <T = Record<string, any>>(table: string, query: string, limit?: number) => Promise<Array<T>>;
+  };
+  buildAgent: {
+    /**
+     * GET /api/sn_build_agent/build_agent_api/runQuery/table/<t>/query/<encoded q>.
+     * Same shape as table.query. Falls back to table.query on 403/404 so the skill
+     * works on instances where sn_build_agent is not deployed or the caller lacks
+     * the Build Agent role. The fallback is transparent to the caller.
+     */
+    runQuery: <T = Record<string, any>>(params: { table: string; query: string; limit?: number }) => Promise<Array<T>>;
+    /**
+     * GET /api/sn_build_agent/build_agent_api/getTableSchema/<t>.
+     * On 403/404 falls back to a sys_dictionary query that synthesizes the same
+     * shape from element/internal_type/mandatory/reference_table fields.
+     */
+    getTableSchema: (table: string) => Promise<TableSchema>;
   };
   claude: {
     /** POST /api/cadso/claude/createRecord. */
@@ -94,6 +121,17 @@ export interface ServiceNowClient {
     /** GET /api/cadso/claude/currentUpdateSet?scope=... */
     currentUpdateSet: (scope?: string) => Promise<{ sys_id: string; name: string }>;
   };
+}
+
+/**
+ * Match a thrown error message against the 403/404 patterns produced by request().
+ * buildAgent.* uses this to decide when to fall back to the plain Table API.
+ */
+function isAccessOrMissing(err: any): boolean {
+  var msg = err && err.message ? String(err.message) : "";
+  if (msg.indexOf("auth error 403") >= 0) return true;
+  if (msg.indexOf("SN 404") >= 0) return true;
+  return false;
 }
 
 export function createClient(config: ServiceNowClientConfig = {}): ServiceNowClient {
@@ -171,19 +209,86 @@ export function createClient(config: ServiceNowClientConfig = {}): ServiceNowCli
     }
   }
 
+  async function tableQueryHelper<T = Record<string, any>>(table: string, query: string, limit: number = 100): Promise<Array<T>> {
+    var data = await request<{ result: Array<T> }>(
+      {
+        method: "GET",
+        url: "/api/now/table/" + encodeURIComponent(table),
+        params: { sysparm_query: query, sysparm_limit: limit, sysparm_display_value: false }
+      },
+      "table.query(" + table + ")"
+    );
+    return data.result || [];
+  }
+
+  async function buildAgentRunQuery<T = Record<string, any>>(params: { table: string; query: string; limit?: number }): Promise<Array<T>> {
+    var lim = params.limit != null ? params.limit : 100;
+    var ctx = "buildAgent.runQuery(" + params.table + ")";
+    try {
+      var data = await request<any>(
+        {
+          method: "GET",
+          url: "/api/sn_build_agent/build_agent_api/runQuery/table/"
+            + encodeURIComponent(params.table)
+            + "/query/" + encodeURIComponent(params.query),
+          params: { sysparm_limit: lim }
+        },
+        ctx
+      );
+      // build_agent endpoints may return { result: [...] } or [...] directly.
+      if (Array.isArray(data)) return data as Array<T>;
+      if (data && Array.isArray(data.result)) return data.result as Array<T>;
+      return [] as Array<T>;
+    } catch (err: any) {
+      if (!isAccessOrMissing(err)) throw err;
+      return await tableQueryHelper<T>(params.table, params.query, lim);
+    }
+  }
+
+  async function buildAgentGetTableSchema(table: string): Promise<TableSchema> {
+    var ctx = "buildAgent.getTableSchema(" + table + ")";
+    try {
+      var data = await request<any>(
+        {
+          method: "GET",
+          url: "/api/sn_build_agent/build_agent_api/getTableSchema/" + encodeURIComponent(table)
+        },
+        ctx
+      );
+      var payload = data && data.result ? data.result : data;
+      if (payload && Array.isArray(payload.fields)) {
+        return {
+          fields: payload.fields,
+          primary_key: payload.primary_key || "sys_id"
+        };
+      }
+    } catch (err: any) {
+      if (!isAccessOrMissing(err)) throw err;
+    }
+    // Fallback: derive from sys_dictionary.
+    var rows = await tableQueryHelper<any>(
+      "sys_dictionary",
+      "name=" + table + "^element!=NULL",
+      500
+    );
+    var fields: Array<TableSchemaField> = rows.map(function (r: any) {
+      return {
+        name: r.element,
+        type: r.internal_type,
+        mandatory: r.mandatory === "true" || r.mandatory === true,
+        reference_table: r.reference_table || null
+      };
+    });
+    return { fields: fields, primary_key: "sys_id" };
+  }
+
   return {
     table: {
-      query: async function <T = Record<string, any>>(table: string, query: string, limit: number = 100): Promise<Array<T>> {
-        var data = await request<{ result: Array<T> }>(
-          {
-            method: "GET",
-            url: "/api/now/table/" + encodeURIComponent(table),
-            params: { sysparm_query: query, sysparm_limit: limit, sysparm_display_value: false }
-          },
-          "table.query(" + table + ")"
-        );
-        return data.result || [];
-      }
+      query: tableQueryHelper
+    },
+    buildAgent: {
+      runQuery: buildAgentRunQuery,
+      getTableSchema: buildAgentGetTableSchema
     },
     claude: {
       createRecord: async function (params) {

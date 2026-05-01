@@ -6,13 +6,44 @@
  */
 
 export { createClient } from "./client";
-export type { ServiceNowClient } from "./client";
+export type { ServiceNowClient, TableSchema, TableSchemaField } from "./client";
 
 export { addChoicesToField } from "./choices";
 
 export { formatAddChoicesResult } from "./formatter";
 
 export { sincPlugin } from "./plugin";
+
+export {
+  listTemplates,
+  verifyArtifact,
+  cloneSubflow,
+  cloneActionType,
+  triggerPublication,
+  generateSysId,
+  topoSort,
+  executeWritePlan,
+  WriteOrderError
+} from "./flowDesigner";
+
+export type {
+  TemplateRef,
+  ListTemplatesParams,
+  FlowKind,
+  VerifyExpect,
+  VerifyFound,
+  VerifyFailure,
+  VerifyReport,
+  VerifyArtifactParams,
+  CloneSubflowParams,
+  CloneSubflowResult,
+  CloneActionTypeParams,
+  CloneActionTypeResult,
+  TriggerPublicationParams,
+  TriggerPublicationResult,
+  WriteOp,
+  WriteOpResult
+} from "./flowDesigner";
 
 export type {
   ServiceNowClientConfig,

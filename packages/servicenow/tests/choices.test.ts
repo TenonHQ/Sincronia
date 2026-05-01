@@ -24,6 +24,10 @@ function makeClient(overrides: { query?: QueryFn } = {}): {
         return (await queryImpl(table, query, limit)) as Array<T>;
       }
     },
+    buildAgent: {
+      runQuery: async function () { return [] as any; },
+      getTableSchema: async function () { return { fields: [], primary_key: "sys_id" }; }
+    },
     claude: {
       createRecord: async function (params) {
         calls.createRecord.push(params);
